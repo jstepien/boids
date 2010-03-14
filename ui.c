@@ -86,7 +86,7 @@ void calcucalte_forces(boid* boids, int n, int this) {
 	while (--n >= 0) {
 		if (n == this)
 			continue;
-		float distance = boid_distance(this, n) + 1;
+		float distance = boid_distance(this, n);
 		if (distance < EPS * EPS)
 			list = g_list_append(list, GINT_TO_POINTER(n));
 	}

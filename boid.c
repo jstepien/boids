@@ -44,8 +44,10 @@ void boid_prepare_distance_cache(boid *_boids, int n) {
 void boid_clear_distance_cache() {
 	for (int i = 0; i < distance_cache_size; ++i)
 		distance_cache[i] = UNDEF;
+#ifndef NDEBUG
 	for (int i = 0; i < distance_cache_size; ++i)
 		assert(distance_cache[i] == UNDEF);
+#endif
 }
 
 void boid_free_distance_cache() {
