@@ -1,0 +1,175 @@
+#include <stdio.h>
+#include <assert.h>
+#include <math.h>
+#include <SDL.h>
+#include <glib.h>
+#include "boid.h"
+
+#define WIDTH 640
+#define HEIGHT 480
+#define DEPTH 32
+
+#define NUM 128
+#define EPS 20
+
+void setpixel(SDL_Surface *screen, int x, int y, Uint8 r, Uint8 g, Uint8 b) {
+	Uint32 *pixmem32;
+	Uint32 colour;  
+	colour = SDL_MapRGB(screen->format, r, g, b);
+	pixmem32 = (Uint32*) screen->pixels + y * screen->pitch / 4 + x;
+	*pixmem32 = colour;
+}
+
+
+void DrawScreen(SDL_Surface* screen, boid* boids, int n) { 
+	if (SDL_MUSTLOCK(screen) && SDL_LockSurface(screen) < 0)
+		exit(1);
+	memset(screen->pixels, 0, HEIGHT * screen->pitch);
+	while (--n >= 0)
+		setpixel(screen, boids[n].x, boids[n].y, 0xff, 0xff, 0xff);
+	if (SDL_MUSTLOCK(screen))
+		SDL_UnlockSurface(screen);
+	SDL_Flip(screen); 
+}
+
+void separation(boid *boids, int this, GList *others) {
+	GList *current = g_list_first(others);
+	float x = 0, y = 0;
+	int count = 0;
+	const int self_weight = 5000;
+	do {
+		int index = GPOINTER_TO_INT(current->data);
+		float distance = boid_real_distance(this, index) + 0.01f;
+		assert(distance > 0);
+		x += (boids[this].x - boids[index].x) / distance;
+		y += (boids[this].y - boids[index].y) / distance;
+		++count;
+	} while (current = g_list_next(current));
+	boids[this].vx = (boids[this].vx * self_weight + x / count) /
+		(self_weight + 1);
+	boids[this].vy = (boids[this].vy * self_weight + y / count) /
+		(self_weight + 1);
+}
+
+void alignment(boid *boids, boid *this, GList *others) {
+	GList *current = g_list_first(others);
+	float vx = 0, vy = 0;
+	int count = 0;
+	const int self_weight = 100;
+	do {
+		int index = GPOINTER_TO_INT(current->data);
+		vx += boids[index].vx;
+		vy += boids[index].vy;
+		++count;
+	} while (current = g_list_next(current));
+	this->vx = (this->vx * self_weight + vx / count) / (self_weight + 1);
+	this->vy = (this->vy * self_weight + vy / count) / (self_weight + 1);
+}
+
+void cohesion(boid *boids, boid *this, GList *others) {
+	GList *current = g_list_first(others);
+	float x = 0, y = 0;
+	int count = 0;
+	const int self_weight = 100000;
+	do {
+		int index = GPOINTER_TO_INT(current->data);
+		x += boids[index].x;
+		y += boids[index].y;
+		++count;
+	} while (current = g_list_next(current));
+	x = x / count - this->x;
+	y = y / count - this->y;
+	this->vx = (this->vx * self_weight + x) / (self_weight + 1);
+	this->vy = (this->vy * self_weight + y) / (self_weight + 1);
+}
+
+void calcucalte_forces(boid* boids, int n, int this) {
+	GList *list = NULL;
+	while (--n >= 0) {
+		if (n == this)
+			continue;
+		float distance = boid_distance(this, n) + 1;
+		if (distance < EPS * EPS)
+			list = g_list_append(list, GINT_TO_POINTER(n));
+	}
+	if (list) {
+		separation(boids, this, list);
+		alignment(boids, boids + this, list);
+		cohesion(boids, boids + this, list);
+		g_list_free(list);
+	}
+}
+
+void simulate(boid* boids, int n, float dt) {
+	int i = 0;
+	for (i = 0; i < n; ++i)
+		calcucalte_forces(boids, n, i);
+	for (i = 0; i < n; ++i) {
+		boids[i].x += boids[i].vx * dt;
+		if (boids[i].x >= WIDTH)
+			boids[i].x -= WIDTH;
+		else if (boids[i].x < 0)
+			boids[i].x += WIDTH;
+		boids[i].y += boids[i].vy * dt;
+		if (boids[i].y >= HEIGHT)
+			boids[i].y -= HEIGHT;
+		else if (boids[i].y < 0)
+			boids[i].y += HEIGHT;
+	}
+	boid_clear_distance_cache();
+}
+
+boid* build_flock(int n) {
+	boid *boids = calloc(n, sizeof(boid));
+	int sum = n;
+	if (!boids)
+		return NULL;
+	while (--n >= sum / 2) {
+		boids[n].vx = 2;
+		boids[n].vy = 0;
+		boids[n].y = 100 + 2 * n;
+		boids[n].x = sinf(boids[n].y / 10) * 40 + 50;
+	}
+	while (--n >= 0) {
+		boids[n].vy = 3;
+		boids[n].vx = 0;
+		boids[n].x = 150 + 2 * n;
+		boids[n].y = sinf(boids[n].x / 10) * 40 + 50;
+	}
+	return boids;
+}
+
+int main(int argc, char* argv[]) {
+	SDL_Surface *screen;
+	SDL_Event event;
+	int keypress = 0;
+	boid *boids;
+	if (SDL_Init(SDL_INIT_VIDEO) < 0 )
+		return 1;
+	screen = SDL_SetVideoMode(WIDTH, HEIGHT, DEPTH, SDL_HWSURFACE);
+	if (!screen) {
+		SDL_Quit();
+		return 1;
+	}
+	boids = build_flock(NUM);
+	assert(boids);
+	boid_prepare_distance_cache(boids, NUM);
+	while (!keypress) {
+		simulate(boids, NUM, 0.05f);
+		DrawScreen(screen, boids, NUM);
+		while (SDL_PollEvent(&event)) {      
+			switch (event.type) {
+				case SDL_QUIT:
+					keypress = 1;
+					break;
+				case SDL_KEYDOWN:
+					keypress = 1;
+					break;
+			}
+		}
+	}
+	boid_free_distance_cache();
+	free(boids);
+	SDL_Quit();
+	return 0;
+}
