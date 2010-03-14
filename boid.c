@@ -5,14 +5,15 @@
 #include <float.h>
 #include "boid.h"
 
+#define square(x) ((x)*(x))
+#define MAX_SPEED 4
+#define UNDEF (FLT_MAX)
+
 float *distance_cache = NULL;
 int distance_cache_size = 0;
 boid *boids = NULL;
 
-#define UNDEF (FLT_MAX)
-
 unsigned int boid_distance(int a, int b) {
-#define square(x) ((x)*(x))
 #if 0
 	int index = a + distance_cache_size * b;
 	assert(index < 640 * 480);
@@ -24,7 +25,6 @@ unsigned int boid_distance(int a, int b) {
 #endif
 	return square(boids[b].y - boids[a].y) +
 			square(boids[a].x - boids[b].x);
-#undef square
 }
 
 float boid_real_distance(int a, int b) {
@@ -53,4 +53,14 @@ void boid_free_distance_cache() {
 	distance_cache = NULL;
 	distance_cache_size = 0;
 	boids = NULL;
+}
+
+void boid_normalize_speed(boid *self) {
+	float speed_sq = square(self->vx) + square(self->vy);
+	float limit_sq = square(MAX_SPEED);
+	if (speed_sq > limit_sq) {
+		float coeff = MAX_SPEED / sqrtf(speed_sq);
+		self->vy *= coeff;
+		self->vx *= coeff;
+	}
 }

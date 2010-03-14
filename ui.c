@@ -36,7 +36,7 @@ void separation(boid *boids, int this, GList *others) {
 	GList *current = g_list_first(others);
 	float x = 0, y = 0;
 	int count = 0;
-	const int self_weight = 5000;
+	const int weight = 50;
 	do {
 		int index = GPOINTER_TO_INT(current->data);
 		float distance = boid_real_distance(this, index) + 0.01f;
@@ -45,32 +45,30 @@ void separation(boid *boids, int this, GList *others) {
 		y += (boids[this].y - boids[index].y) / distance;
 		++count;
 	} while (current = g_list_next(current));
-	boids[this].vx = (boids[this].vx * self_weight + x / count) /
-		(self_weight + 1);
-	boids[this].vy = (boids[this].vy * self_weight + y / count) /
-		(self_weight + 1);
+	boids[this].fx = x / count / weight;
+	boids[this].fy = y / count / weight;
 }
 
 void alignment(boid *boids, boid *this, GList *others) {
 	GList *current = g_list_first(others);
 	float vx = 0, vy = 0;
 	int count = 0;
-	const int self_weight = 100;
+	const int weight = 10;
 	do {
 		int index = GPOINTER_TO_INT(current->data);
 		vx += boids[index].vx;
 		vy += boids[index].vy;
 		++count;
 	} while (current = g_list_next(current));
-	this->vx = (this->vx * self_weight + vx / count) / (self_weight + 1);
-	this->vy = (this->vy * self_weight + vy / count) / (self_weight + 1);
+	this->fx += vx / count / weight;
+	this->fy += vy / count / weight;
 }
 
 void cohesion(boid *boids, boid *this, GList *others) {
 	GList *current = g_list_first(others);
 	float x = 0, y = 0;
 	int count = 0;
-	const int self_weight = 100000;
+	const int weight = 1000;
 	do {
 		int index = GPOINTER_TO_INT(current->data);
 		x += boids[index].x;
@@ -79,8 +77,8 @@ void cohesion(boid *boids, boid *this, GList *others) {
 	} while (current = g_list_next(current));
 	x = x / count - this->x;
 	y = y / count - this->y;
-	this->vx = (this->vx * self_weight + x) / (self_weight + 1);
-	this->vy = (this->vy * self_weight + y) / (self_weight + 1);
+	this->fx += x / weight;
+	this->fy += y / weight;
 }
 
 void calcucalte_forces(boid* boids, int n, int this) {
@@ -105,6 +103,10 @@ void simulate(boid* boids, int n, float dt) {
 	for (i = 0; i < n; ++i)
 		calcucalte_forces(boids, n, i);
 	for (i = 0; i < n; ++i) {
+		boids[i].vx += boids[i].fx * dt;
+		boids[i].vy += boids[i].fy * dt;
+		boids[i].fx = boids[i].fy = 0;
+		boid_normalize_speed(boids + i);
 		boids[i].x += boids[i].vx * dt;
 		if (boids[i].x >= WIDTH)
 			boids[i].x -= WIDTH;

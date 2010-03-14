@@ -20,4 +20,6 @@ void boid_clear_distance_cache();
 
 void boid_free_distance_cache();
 
+void boid_normalize_speed(boid *self);
+
 #endif /* BOID_H_ */
