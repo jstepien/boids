@@ -10,15 +10,9 @@ typedef struct {
 	float fy;
 } boid;
 
-unsigned int boid_distance(int a, int b);
+unsigned int boid_distance(boid *a, boid *b);
 
-float boid_real_distance(int a, int b);
-
-void boid_prepare_distance_cache(boid *boids, int size);
-
-void boid_clear_distance_cache();
-
-void boid_free_distance_cache();
+float boid_real_distance(boid *a, boid *b);
 
 void boid_normalize_speed(boid *self);
 

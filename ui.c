@@ -40,7 +40,8 @@ void separation(boid *boids, int this, GList *others) {
 	const int weight = 50;
 	do {
 		int index = GPOINTER_TO_INT(current->data);
-		float distance = boid_real_distance(this, index) + 0.01f;
+		float distance = boid_real_distance(boids + this, boids + index) +
+			0.01f;
 		assert(distance > 0);
 		x += (boids[this].x - boids[index].x) / distance;
 		y += (boids[this].y - boids[index].y) / distance;
@@ -87,7 +88,7 @@ void calculate_forces(boid* boids, int n, int this) {
 	while (--n >= 0) {
 		if (n == this)
 			continue;
-		float distance = boid_distance(this, n);
+		float distance = boid_distance(boids + this, boids + n);
 		if (distance < EPS * EPS)
 			list = g_list_append(list, GINT_TO_POINTER(n));
 	}
@@ -119,7 +120,6 @@ void simulate(boid* boids, int n, float dt) {
 		else if (boids[i].y < 0)
 			boids[i].y += HEIGHT;
 	}
-	boid_clear_distance_cache();
 }
 
 boid* build_flock(int n) {
@@ -158,7 +158,6 @@ int main(int argc, char* argv[]) {
 	}
 	boids = build_flock(NUM);
 	assert(boids);
-	boid_prepare_distance_cache(boids, NUM);
 	while (!keypress) {
 		struct timeval now, then;
 		gettimeofday(&then, NULL);
@@ -186,7 +185,6 @@ int main(int argc, char* argv[]) {
 			probes = time_total = 0;
 		}
 	}
-	boid_free_distance_cache();
 	free(boids);
 	SDL_Quit();
 	return 0;
