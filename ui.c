@@ -82,7 +82,7 @@ void cohesion(boid *boids, boid *this, GList *others) {
 	this->fy += y / weight;
 }
 
-void calcucalte_forces(boid* boids, int n, int this) {
+void calculate_forces(boid* boids, int n, int this) {
 	GList *list = NULL;
 	while (--n >= 0) {
 		if (n == this)
@@ -102,7 +102,7 @@ void calcucalte_forces(boid* boids, int n, int this) {
 void simulate(boid* boids, int n, float dt) {
 	int i = 0;
 	for (i = 0; i < n; ++i)
-		calcucalte_forces(boids, n, i);
+		calculate_forces(boids, n, i);
 	for (i = 0; i < n; ++i) {
 		boids[i].vx += boids[i].fx * dt;
 		boids[i].vy += boids[i].fy * dt;
