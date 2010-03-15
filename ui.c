@@ -10,7 +10,7 @@
 #define HEIGHT 480
 #define DEPTH 32
 
-#define NUM 128
+#define NUM 512
 #define EPS 20
 
 void setpixel(SDL_Surface *screen, int x, int y, Uint8 r, Uint8 g, Uint8 b) {
@@ -130,13 +130,13 @@ boid* build_flock(int n) {
 	while (--n >= sum / 2) {
 		boids[n].vx = 2;
 		boids[n].vy = 0;
-		boids[n].y = 100 + 2 * n;
+		boids[n].y = -50 + n;
 		boids[n].x = sinf(boids[n].y / 10) * 40 + 50;
 	}
 	while (--n >= 0) {
 		boids[n].vy = 3;
 		boids[n].vx = 0;
-		boids[n].x = 150 + 2 * n;
+		boids[n].x = 50 + n;
 		boids[n].y = sinf(boids[n].x / 10) * 40 + 50;
 	}
 	return boids;
