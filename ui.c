@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <assert.h>
 #include <math.h>
+#include <sys/time.h>
 #include <SDL.h>
 #include <glib.h>
 #include "boid.h"
@@ -144,7 +145,9 @@ boid* build_flock(int n) {
 int main(int argc, char* argv[]) {
 	SDL_Surface *screen;
 	SDL_Event event;
-	int keypress = 0;
+	int keypress = 0, probes = 0, time_total = 0;
+	const int probes_per_avg = 100;
+	char buffer[256];
 	boid *boids;
 	if (SDL_Init(SDL_INIT_VIDEO) < 0 )
 		return 1;
@@ -157,7 +160,10 @@ int main(int argc, char* argv[]) {
 	assert(boids);
 	boid_prepare_distance_cache(boids, NUM);
 	while (!keypress) {
-		simulate(boids, NUM, 0.05f);
+		struct timeval now, then;
+		gettimeofday(&then, NULL);
+		simulate(boids, NUM, 0.1f);
+		gettimeofday(&now, NULL);
 		DrawScreen(screen, boids, NUM);
 		while (SDL_PollEvent(&event)) {      
 			switch (event.type) {
@@ -168,6 +174,16 @@ int main(int argc, char* argv[]) {
 					keypress = 1;
 					break;
 			}
+		}
+		if (now.tv_usec - then.tv_usec > 0)
+			time_total += now.tv_usec - then.tv_usec;
+		else
+			--probes;
+		if (++probes == probes_per_avg) {
+			snprintf(buffer, sizeof(buffer), "Simlations/s: %f",
+					1e6f * probes_per_avg / time_total);
+			SDL_WM_SetCaption(buffer, buffer);
+			probes = time_total = 0;
 		}
 	}
 	boid_free_distance_cache();
