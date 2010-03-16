@@ -1,10 +1,10 @@
 DEPS=sdl glib-2.0
 CFLAGS+=`pkg-config --cflags ${DEPS}`
 LDFLAGS+=`pkg-config --libs ${DEPS}`
-OBJECTS=ui.o boid.o
+CPUOBJECTS=ui.o boid.o cpu_simulation.o
 .PHONY: all
 all: cpu
-cpu: ${OBJECTS}
+cpu: ${CPUOBJECTS}
 	${CC} $^ -o $@ ${LDFLAGS}
 clean:
-	-rm -f cpu ${OBJECTS}
+	-rm -f cpu ${CPUOBJECTS}
