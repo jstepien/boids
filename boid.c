@@ -3,6 +3,7 @@
 #include <assert.h>
 #include <string.h>
 #include <float.h>
+#include <stdio.h>
 #include "boid.h"
 
 #define square(x) ((x)*(x))
@@ -14,17 +15,30 @@ int distance_cache_size = 0;
 boid *boids = NULL;
 
 unsigned int boid_distance(int a, int b) {
+	static unsigned int cache_hits = 0, cache_misses = 0;
 	int index = a + distance_cache_size * b,
 		second_index = b + distance_cache_size * a;
 	assert(index < square(distance_cache_size));
 	assert(index >= 0);
 	if (distance_cache[index] == UNDEF) {
+#ifndef NDEBUG
+		++cache_misses;
+#endif
 		if (distance_cache[second_index] != UNDEF)
 			return distance_cache[second_index];
 		else
 			distance_cache[index] = square(boids[b].y - boids[a].y) +
 				square(boids[a].x - boids[b].x);
 	}
+#ifndef NDEBUG
+	else
+		++cache_hits;
+	if (cache_hits >= 10000000 || cache_misses >= 10000000) {
+		printf("Cache: %i hits, %i misses, %i%%\n", cache_hits, cache_misses,
+				100 * cache_hits / (cache_hits + cache_misses));
+		cache_misses = cache_hits = 0;
+	}
+#endif
 	return distance_cache[index];
 }
 
