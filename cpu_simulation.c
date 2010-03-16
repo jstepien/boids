@@ -11,8 +11,7 @@ static void separation(boid *boids, int this, GList *others) {
 	const int weight = 50;
 	do {
 		int index = GPOINTER_TO_INT(current->data);
-		float distance = boid_real_distance(boids + this, boids + index) +
-			0.01f;
+		float distance = boid_real_distance(this, index) + 0.01f;
 		assert(distance > 0);
 		x += (boids[this].x - boids[index].x) / distance;
 		y += (boids[this].y - boids[index].y) / distance;
@@ -59,7 +58,7 @@ static GList *find_neighbours(boid* boids, int n, int this, int eps) {
 	while (--n >= 0) {
 		if (n == this)
 			continue;
-		float distance = boid_distance(boids + this, boids + n);
+		float distance = boid_distance(this, n);
 		if (distance < eps * eps)
 			list = g_list_append(list, GINT_TO_POINTER(n));
 	}
@@ -99,4 +98,5 @@ void simulate(simulation_params *sp) {
 		calculate_forces(sp->boids, sp->n, i, sp->eps);
 	for (i = 0; i < sp->n; ++i)
 		apply_forces(sp, &sp->boids[i]);
+	boid_clear_distance_cache();
 }

@@ -114,6 +114,7 @@ int main(int argc, char* argv[]) {
 	boids = build_flock(NUM);
 	assert(boids);
 	sp.boids = boids;
+	boid_prepare_distance_cache(boids, NUM);
 	simulation_loop(screen, &sp);
 	free(boids);
 	SDL_Quit();

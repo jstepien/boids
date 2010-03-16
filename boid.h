@@ -10,10 +10,14 @@ typedef struct {
 	float fy;
 } boid;
 
-unsigned int boid_distance(boid *a, boid *b);
+unsigned int boid_distance(int a, int b);
 
-float boid_real_distance(boid *a, boid *b);
+float boid_real_distance(int a, int b);
 
 void boid_normalize_speed(boid *self);
+
+void boid_clear_distance_cache();
+
+void boid_prepare_distance_cache(boid *boids, int n);
 
 #endif /* BOID_H_ */

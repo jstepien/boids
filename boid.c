@@ -7,6 +7,7 @@
 
 #define square(x) ((x)*(x))
 #define MAX_SPEED 4
+#define UNDEF (FLT_MAX)
 
 float *distance_cache = NULL;
 int distance_cache_size = 0;
@@ -27,7 +28,7 @@ unsigned int boid_distance(int a, int b) {
 	return distance_cache[index];
 }
 
-float boid_real_distance(boid *a, boid *b) {
+float boid_real_distance(int a, int b) {
 	return sqrtf(boid_distance(a, b));
 }
 
