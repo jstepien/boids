@@ -58,8 +58,7 @@ static GList *find_neighbours(boid* boids, int n, int this, int eps) {
 	while (--n >= 0) {
 		if (n == this)
 			continue;
-		float distance = boid_distance(this, n);
-		if (distance < eps * eps)
+		if (boid_distance(this, n) < eps * eps)
 			list = g_list_append(list, GINT_TO_POINTER(n));
 	}
 	return list;
@@ -94,9 +93,9 @@ static void apply_forces(simulation_params *sp, boid* boid) {
 
 void simulate(simulation_params *sp) {
 	int i = 0;
+	boid_reload_distance_cache();
 	for (i = 0; i < sp->n; ++i)
 		calculate_forces(sp->boids, sp->n, i, sp->eps);
 	for (i = 0; i < sp->n; ++i)
 		apply_forces(sp, &sp->boids[i]);
-	boid_clear_distance_cache();
 }

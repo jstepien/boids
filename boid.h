@@ -16,7 +16,7 @@ float boid_real_distance(int a, int b);
 
 void boid_normalize_speed(boid *self);
 
-void boid_clear_distance_cache();
+void boid_reload_distance_cache();
 
 void boid_prepare_distance_cache(boid *boids, int n);
 
