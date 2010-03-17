@@ -54,34 +54,33 @@ boid* build_flock(int n) {
 	return boids;
 }
 
-int main(int argc, char* argv[]) {
-	SDL_Surface *screen;
+void init_video(SDL_Surface **screen) {
+	if (SDL_Init(SDL_INIT_VIDEO) < 0 ) {
+		*screen = NULL;
+		return;
+	}
+	*screen = SDL_SetVideoMode(WIDTH, HEIGHT, DEPTH, SDL_HWSURFACE);
+	if (!*screen)
+		SDL_Quit();
+}
+
+void print_stats(int probes_per_avg, int time_total) {
+	char buffer[256];
+	snprintf(buffer, sizeof(buffer), "Simlations/s: %f",
+			1e6f * probes_per_avg / time_total);
+	SDL_WM_SetCaption(buffer, buffer);
+}
+
+void simulation_loop(SDL_Surface *screen, simulation_params *sp) {
+	const int probes_per_avg = 100;
 	SDL_Event event;
 	int keypress = 0, probes = 0, time_total = 0;
-	simulation_params sp = {WIDTH, HEIGHT, NULL, NUM, EPS, DT, NULL};
-	const int probes_per_avg = 100;
-	char buffer[256];
-	assert(sp.dt == DT);
-	assert(sp.eps == EPS);
-	assert(sp.attractor == NULL);
-	assert(sp.n == NUM);
-	boid *boids;
-	if (SDL_Init(SDL_INIT_VIDEO) < 0 )
-		return 1;
-	screen = SDL_SetVideoMode(WIDTH, HEIGHT, DEPTH, SDL_HWSURFACE);
-	if (!screen) {
-		SDL_Quit();
-		return 1;
-	}
-	boids = build_flock(NUM);
-	assert(boids);
-	sp.boids = boids;
 	while (!keypress) {
 		struct timeval now, then;
 		gettimeofday(&then, NULL);
-		simulate(&sp);
+		simulate(sp);
 		gettimeofday(&now, NULL);
-		DrawScreen(screen, boids, NUM);
+		DrawScreen(screen, sp->boids, sp->n);
 		while (SDL_PollEvent(&event)) {      
 			switch (event.type) {
 				case SDL_QUIT:
@@ -97,12 +96,25 @@ int main(int argc, char* argv[]) {
 		else
 			--probes;
 		if (++probes == probes_per_avg) {
-			snprintf(buffer, sizeof(buffer), "Simlations/s: %f",
-					1e6f * probes_per_avg / time_total);
-			SDL_WM_SetCaption(buffer, buffer);
+			print_stats(probes_per_avg, time_total);
 			probes = time_total = 0;
 		}
 	}
+}
+
+int main(int argc, char* argv[]) {
+	SDL_Surface *screen;
+	simulation_params sp = {WIDTH, HEIGHT, NULL, NUM, EPS, DT, NULL};
+	boid *boids;
+	assert(sp.dt == DT);
+	assert(sp.eps == EPS);
+	assert(sp.attractor == NULL);
+	assert(sp.n == NUM);
+	init_video(&screen);
+	boids = build_flock(NUM);
+	assert(boids);
+	sp.boids = boids;
+	simulation_loop(screen, &sp);
 	free(boids);
 	SDL_Quit();
 	return 0;

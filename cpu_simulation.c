@@ -54,7 +54,7 @@ static void cohesion(boid *boids, boid *this, GList *others) {
 	this->fy += y / weight;
 }
 
-static void calculate_forces(boid* boids, int n, int this, int eps) {
+static GList *find_neighbours(boid* boids, int n, int this, int eps) {
 	GList *list = NULL;
 	while (--n >= 0) {
 		if (n == this)
@@ -63,6 +63,11 @@ static void calculate_forces(boid* boids, int n, int this, int eps) {
 		if (distance < eps * eps)
 			list = g_list_append(list, GINT_TO_POINTER(n));
 	}
+	return list;
+}
+
+static void calculate_forces(boid* boids, int n, int this, int eps) {
+	GList *list = find_neighbours(boids, n, this, eps);
 	if (list) {
 		separation(boids, this, list);
 		alignment(boids, boids + this, list);
@@ -71,24 +76,27 @@ static void calculate_forces(boid* boids, int n, int this, int eps) {
 	}
 }
 
+static void apply_forces(simulation_params *sp, boid* boid) {
+	boid->vx += boid->fx * sp->dt;
+	boid->vy += boid->fy * sp->dt;
+	boid->fx = boid->fy = 0;
+	boid_normalize_speed(boid);
+	boid->x += boid->vx * sp->dt;
+	if (boid->x >= sp->width)
+		boid->x -= sp->width;
+	else if (boid->x < 0)
+		boid->x += sp->width;
+	boid->y += boid->vy * sp->dt;
+	if (boid->y >= sp->height)
+		boid->y -= sp->height;
+	else if (boid->y < 0)
+		boid->y += sp->height;
+}
+
 void simulate(simulation_params *sp) {
 	int i = 0;
 	for (i = 0; i < sp->n; ++i)
 		calculate_forces(sp->boids, sp->n, i, sp->eps);
-	for (i = 0; i < sp->n; ++i) {
-		sp->boids[i].vx += sp->boids[i].fx * sp->dt;
-		sp->boids[i].vy += sp->boids[i].fy * sp->dt;
-		sp->boids[i].fx = sp->boids[i].fy = 0;
-		boid_normalize_speed(sp->boids + i);
-		sp->boids[i].x += sp->boids[i].vx * sp->dt;
-		if (sp->boids[i].x >= sp->width)
-			sp->boids[i].x -= sp->width;
-		else if (sp->boids[i].x < 0)
-			sp->boids[i].x += sp->width;
-		sp->boids[i].y += sp->boids[i].vy * sp->dt;
-		if (sp->boids[i].y >= sp->height)
-			sp->boids[i].y -= sp->height;
-		else if (sp->boids[i].y < 0)
-			sp->boids[i].y += sp->height;
-	}
+	for (i = 0; i < sp->n; ++i)
+		apply_forces(sp, &sp->boids[i]);
 }
