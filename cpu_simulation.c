@@ -71,24 +71,24 @@ static void calculate_forces(boid* boids, int n, int this, int eps) {
 	}
 }
 
-void simulate(int width, int height, boid* boids, int n, int eps, float dt) {
+void simulate(simulation_params *sp) {
 	int i = 0;
-	for (i = 0; i < n; ++i)
-		calculate_forces(boids, n, i, eps);
-	for (i = 0; i < n; ++i) {
-		boids[i].vx += boids[i].fx * dt;
-		boids[i].vy += boids[i].fy * dt;
-		boids[i].fx = boids[i].fy = 0;
-		boid_normalize_speed(boids + i);
-		boids[i].x += boids[i].vx * dt;
-		if (boids[i].x >= width)
-			boids[i].x -= width;
-		else if (boids[i].x < 0)
-			boids[i].x += width;
-		boids[i].y += boids[i].vy * dt;
-		if (boids[i].y >= height)
-			boids[i].y -= height;
-		else if (boids[i].y < 0)
-			boids[i].y += height;
+	for (i = 0; i < sp->n; ++i)
+		calculate_forces(sp->boids, sp->n, i, sp->eps);
+	for (i = 0; i < sp->n; ++i) {
+		sp->boids[i].vx += sp->boids[i].fx * sp->dt;
+		sp->boids[i].vy += sp->boids[i].fy * sp->dt;
+		sp->boids[i].fx = sp->boids[i].fy = 0;
+		boid_normalize_speed(sp->boids + i);
+		sp->boids[i].x += sp->boids[i].vx * sp->dt;
+		if (sp->boids[i].x >= sp->width)
+			sp->boids[i].x -= sp->width;
+		else if (sp->boids[i].x < 0)
+			sp->boids[i].x += sp->width;
+		sp->boids[i].y += sp->boids[i].vy * sp->dt;
+		if (sp->boids[i].y >= sp->height)
+			sp->boids[i].y -= sp->height;
+		else if (sp->boids[i].y < 0)
+			sp->boids[i].y += sp->height;
 	}
 }

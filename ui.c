@@ -12,6 +12,7 @@
 
 #define NUM 512
 #define EPS 20
+#define DT 0.1f
 
 void setpixel(SDL_Surface *screen, int x, int y, Uint8 r, Uint8 g, Uint8 b) {
 	Uint32 *pixmem32;
@@ -57,8 +58,13 @@ int main(int argc, char* argv[]) {
 	SDL_Surface *screen;
 	SDL_Event event;
 	int keypress = 0, probes = 0, time_total = 0;
+	simulation_params sp = {WIDTH, HEIGHT, NULL, NUM, EPS, DT, NULL};
 	const int probes_per_avg = 100;
 	char buffer[256];
+	assert(sp.dt == DT);
+	assert(sp.eps == EPS);
+	assert(sp.attractor == NULL);
+	assert(sp.n == NUM);
 	boid *boids;
 	if (SDL_Init(SDL_INIT_VIDEO) < 0 )
 		return 1;
@@ -69,10 +75,11 @@ int main(int argc, char* argv[]) {
 	}
 	boids = build_flock(NUM);
 	assert(boids);
+	sp.boids = boids;
 	while (!keypress) {
 		struct timeval now, then;
 		gettimeofday(&then, NULL);
-		simulate(WIDTH, HEIGHT, boids, NUM, EPS, 0.1f);
+		simulate(&sp);
 		gettimeofday(&now, NULL);
 		DrawScreen(screen, boids, NUM);
 		while (SDL_PollEvent(&event)) {      
