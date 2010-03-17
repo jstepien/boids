@@ -5,20 +5,20 @@
 #include "simulation.h"
 
 static void separation(boid *boids, int this, GList *others) {
-	GList *current = g_list_first(others);
 	float x = 0, y = 0;
-	int count = 0;
+	int count = 0, divisor;
 	const int weight = 50;
 	do {
-		int index = GPOINTER_TO_INT(current->data);
+		int index = GPOINTER_TO_INT(others->data);
 		float distance = boid_real_distance(this, index) + 0.01f;
 		assert(distance > 0);
 		x += (boids[this].x - boids[index].x) / distance;
 		y += (boids[this].y - boids[index].y) / distance;
 		++count;
-	} while (current = g_list_next(current));
-	boids[this].fx = x / count / weight;
-	boids[this].fy = y / count / weight;
+	} while (others = g_list_next(others));
+	divisor = count * weight;
+	boids[this].fx = x / divisor;
+	boids[this].fy = y / divisor;
 }
 
 static void alignment(boid *boids, boid *this, GList *others) {
