@@ -57,9 +57,7 @@ static GList *find_neighbours(boid* boids, int n, int this, int eps) {
 	unsigned int squared_eps = eps * eps;
 	GList *list = NULL;
 	while (--n >= 0) {
-		if (n == this)
-			continue;
-		if (boid_distance(this, n) < squared_eps)
+		if (boid_distance(this, n) < squared_eps && n != this)
 			list = g_list_append(list, GINT_TO_POINTER(n));
 	}
 	return list;
