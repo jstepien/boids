@@ -92,9 +92,13 @@ static void apply_forces(simulation_params *sp, boid* boid) {
 
 void simulate(simulation_params *sp) {
 	int i = 0;
+	if (!g_thread_supported())
+		g_thread_init(NULL);
 	boid_reload_distance_cache();
+	#pragma omp parallel for
 	for (i = 0; i < sp->n; ++i)
 		calculate_forces(sp->boids, sp->n, i, sp->eps);
+	#pragma omp parallel for
 	for (i = 0; i < sp->n; ++i)
 		apply_forces(sp, &sp->boids[i]);
 }
