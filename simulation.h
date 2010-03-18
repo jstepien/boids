@@ -1,7 +1,14 @@
 #ifndef SIMULATION_H_
 #define SIMULATION_H_
 
-#include "boid.h"
+typedef struct {
+	float x;
+	float y;
+	float vx;
+	float vy;
+	float fx;
+	float fy;
+} boid;
 
 typedef struct {
 	int x, y;

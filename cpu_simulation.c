@@ -1,8 +1,60 @@
 #include <math.h>
 #include <assert.h>
 #include <glib.h>
-#include "boid.h"
+#include <stdlib.h>
 #include "simulation.h"
+
+#define square(x) ((x)*(x))
+#define MAX_SPEED 4
+
+float *distance_cache = NULL;
+int distance_cache_size = 0;
+boid *boids = NULL;
+
+static inline unsigned int boid_distance(int a, int b) {
+	return distance_cache[a + distance_cache_size * b];
+}
+
+static inline float boid_real_distance(int a, int b) {
+	return sqrtf(boid_distance(a, b));
+}
+
+static void prepare_distance_cache(boid *_boids, int n) {
+	assert(_boids);
+	assert(n > 0);
+	distance_cache = malloc(sizeof(*distance_cache) * n * n);
+	assert(distance_cache);
+	boids = _boids;
+	distance_cache_size = n;
+}
+
+static void reload_distance_cache() {
+	int i, j;
+#pragma omp parallel for private(j)
+	for (i = 0; i < distance_cache_size; ++i)
+		for (j = i; j < distance_cache_size; ++j)
+			distance_cache[i + distance_cache_size * j] =
+				distance_cache[j + distance_cache_size * i] =
+				square(boids[j].y - boids[i].y) +
+				square(boids[j].x - boids[i].x);
+}
+
+static void free_distance_cache() {
+	free(distance_cache);
+	distance_cache = NULL;
+	distance_cache_size = 0;
+	boids = NULL;
+}
+
+static void normalize_speed(boid *self) {
+	float speed_sq = square(self->vx) + square(self->vy);
+	float limit_sq = square(MAX_SPEED);
+	if (speed_sq > limit_sq) {
+		float coeff = MAX_SPEED / sqrtf(speed_sq);
+		self->vy *= coeff;
+		self->vx *= coeff;
+	}
+}
 
 static void separation(boid *boids, int this, GList *others) {
 	float x = 0, y = 0;
@@ -77,7 +129,7 @@ static void apply_forces(simulation_params *sp, boid* boid) {
 	boid->vx += boid->fx * sp->dt;
 	boid->vy += boid->fy * sp->dt;
 	boid->fx = boid->fy = 0;
-	boid_normalize_speed(boid);
+	normalize_speed(boid);
 	boid->x += boid->vx * sp->dt;
 	if (boid->x >= sp->width)
 		boid->x -= sp->width;
@@ -94,7 +146,9 @@ void simulate(simulation_params *sp) {
 	int i = 0;
 	if (!g_thread_supported())
 		g_thread_init(NULL);
-	boid_reload_distance_cache();
+	if (!distance_cache)
+		prepare_distance_cache(sp->boids, sp->n);
+	reload_distance_cache();
 	#pragma omp parallel for
 	for (i = 0; i < sp->n; ++i)
 		calculate_forces(sp->boids, sp->n, i, sp->eps);

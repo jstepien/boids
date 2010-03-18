@@ -3,7 +3,6 @@
 #include <math.h>
 #include <sys/time.h>
 #include <SDL.h>
-#include "boid.h"
 #include "simulation.h"
 
 #define WIDTH 640
@@ -11,7 +10,7 @@
 #define DEPTH 32
 
 #define NUM 512
-#define EPS 20
+#define EPS 10
 #define DT 0.1f
 
 void setpixel(SDL_Surface *screen, int x, int y, Uint8 r, Uint8 g, Uint8 b) {
@@ -114,7 +113,6 @@ int main(int argc, char* argv[]) {
 	boids = build_flock(NUM);
 	assert(boids);
 	sp.boids = boids;
-	boid_prepare_distance_cache(boids, NUM);
 	simulation_loop(screen, &sp);
 	free(boids);
 	SDL_Quit();
