@@ -7,6 +7,10 @@
 #define square(x) ((x)*(x))
 #define MAX_SPEED 4
 
+/*
+ * Yeah, global variables are ugly, but without them boid_distane couldn't have
+ * been inlined -- inlining gives speeeed!
+ */
 float *distance_cache = NULL;
 int distance_cache_size = 0;
 boid *boids = NULL;
