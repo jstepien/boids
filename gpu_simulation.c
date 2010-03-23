@@ -1,6 +1,5 @@
 #include <math.h>
 #include <assert.h>
-#include <glib.h>
 #include <stdlib.h>
 #include <cuda_runtime.h>
 #include "simulation.h"
@@ -65,49 +64,47 @@ static void normalize_speed(boid *self) {
 	}
 }
 
-static void separation(boid *boids, int this, GList *others) {
+static void separation(boid *boids, int this, int *neighbours) {
 	float x = 0, y = 0;
-	int count = 0, divisor;
+	int count = 0, divisor, i;
 	const int weight = 50;
-	do {
-		int index = GPOINTER_TO_INT(others->data);
+	for (i = 0; neighbours[i] != INT_MAX; ++i) {
+		int index = neighbours[i];
 		float distance = boid_real_distance(this, index) + 0.01f;
 		assert(distance > 0);
 		x += (boids[this].x - boids[index].x) / distance;
 		y += (boids[this].y - boids[index].y) / distance;
 		++count;
-	} while (others = g_list_next(others));
+	}
 	divisor = count * weight;
 	boids[this].fx = x / divisor;
 	boids[this].fy = y / divisor;
 }
 
-static void alignment(boid *boids, boid *this, GList *others) {
-	GList *current = g_list_first(others);
+static void alignment(boid *boids, boid *this, int *neighbours) {
 	float vx = 0, vy = 0;
-	int count = 0;
+	int count = 0, i;
 	const int weight = 10;
-	do {
-		int index = GPOINTER_TO_INT(current->data);
+	for (i = 0; neighbours[i] != INT_MAX; ++i) {
+		int index = neighbours[i];
 		vx += boids[index].vx;
 		vy += boids[index].vy;
 		++count;
-	} while (current = g_list_next(current));
+	}
 	this->fx += vx / count / weight;
 	this->fy += vy / count / weight;
 }
 
-static void cohesion(boid *boids, boid *this, GList *others) {
-	GList *current = g_list_first(others);
+static void cohesion(boid *boids, boid *this, int *neighbours) {
 	float x = 0, y = 0;
-	int count = 0;
+	int count = 0, i;
 	const int weight = 1000;
-	do {
-		int index = GPOINTER_TO_INT(current->data);
+	for (i = 0; neighbours[i] != INT_MAX; ++i) {
+		int index = neighbours[i];
 		x += boids[index].x;
 		y += boids[index].y;
 		++count;
-	} while (current = g_list_next(current));
+	}
 	x = x / count - this->x;
 	y = y / count - this->y;
 	this->fx += x / weight;
@@ -117,17 +114,13 @@ static void cohesion(boid *boids, boid *this, GList *others) {
 static void calculate_forces(boid* boids, int n, int this, int eps) {
 	static int *neighbours = NULL;
 	int i = 0;
-	GList *list = NULL;
 	if (!neighbours)
 		neighbours = malloc(n * sizeof(int));
 	find_neighbours(neighbours, n, this, d_distance_cache, eps);
-	while (neighbours[i] != INT_MAX)
-		list = g_list_append(list, GINT_TO_POINTER(neighbours[i++]));
-	if (list) {
-		separation(boids, this, list);
-		alignment(boids, boids + this, list);
-		cohesion(boids, boids + this, list);
-		g_list_free(list);
+	if (neighbours[0] != INT_MAX) {
+		separation(boids, this, neighbours);
+		alignment(boids, boids + this, neighbours);
+		cohesion(boids, boids + this, neighbours);
 	}
 }
 
@@ -150,8 +143,6 @@ static void apply_forces(simulation_params *sp, boid* boid) {
 
 void simulate(simulation_params *sp) {
 	int i = 0;
-	if (!g_thread_supported())
-		g_thread_init(NULL);
 	if (!distance_cache)
 		prepare_distance_cache(sp->boids, sp->n);
 	reload_distance_cache();
