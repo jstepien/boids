@@ -28,16 +28,20 @@ __global__ static void neighbourhood(unsigned int *neighbours,
 
 inline static void run_kernel(int *neighbours, int n, int self,
 		float *d_distances, int eps_sq) {
-	unsigned int *d_flags, *d_neighbours, *d_neighbours_sorted,
-				 blocksize = 64, flags_bytes = n * sizeof(*d_flags),
+	static unsigned int *d_flags = NULL, *d_neighbours = NULL,
+		*d_neighbours_sorted = NULL;
+	unsigned int blocksize = 64, flags_bytes = n * sizeof(*d_flags),
 				 neighbours_bytes = n * sizeof(int);
-	size_t *d_num_valid_elems, num_valid_elems;
+	static size_t *d_num_valid_elems = NULL;
+	size_t num_valid_elems;
 	dim3 blocks(n / blocksize), threads(blocksize);
 
-	cudaMalloc((void**) &d_flags, flags_bytes);
-	cudaMalloc((void**) &d_neighbours, neighbours_bytes);
-	cudaMalloc((void**) &d_neighbours_sorted, neighbours_bytes);
-	cudaMalloc((void**) &d_num_valid_elems, sizeof(*d_num_valid_elems));
+	if (!d_flags) {
+		cudaMalloc((void**) &d_flags, flags_bytes);
+		cudaMalloc((void**) &d_neighbours, neighbours_bytes);
+		cudaMalloc((void**) &d_neighbours_sorted, neighbours_bytes);
+		cudaMalloc((void**) &d_num_valid_elems, sizeof(*d_num_valid_elems));
+	}
 	cudaMemset(d_flags, 0, flags_bytes);
 	check_cuda_error();
 
@@ -77,10 +81,6 @@ inline static void run_kernel(int *neighbours, int n, int self,
 	cudaMemcpy(neighbours, d_neighbours_sorted, neighbours_bytes,
 			cudaMemcpyDeviceToHost);
 	neighbours[num_valid_elems] = INT_MAX;
-	cudaFree(d_flags);
-	cudaFree(d_neighbours);
-	cudaFree(d_neighbours_sorted);
-	cudaFree(d_num_valid_elems);
 }
 
 int find_neighbours(int *neighbours, int n, int self, float *d_distances,
