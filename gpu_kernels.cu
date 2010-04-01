@@ -5,6 +5,8 @@ extern "C" {
 	#include "gpu_kernels.h"
 }
 
+#include <cudpp.h>
+
 #define square(x) ((x)*(x))
 
 #define check_cuda_error() {\
@@ -14,82 +16,71 @@ extern "C" {
 		exit(-1); \
 	} }
 
-__device__ inline void swap(int &a, int &b) {
-	int tmp = a;
-	a = b;
-	b = tmp;
-}
-
-__global__ static void bitonicSort(int n, char *keys, int *values) {
-	extern __shared__ int shared[];
-	const unsigned int tid = blockIdx.x * blockDim.x + threadIdx.x;
-
-#define key(tid) shared[(tid)]
-#define value(tid) shared[(tid) + n]
-
-	key(tid) = keys[tid];
-	value(tid) = tid;
-	__syncthreads();
-
-	for (unsigned int k = 2; k <= n; k *= 2) {
-		for (unsigned int j = k / 2; j > 0; j /= 2) {
-			unsigned int ixj = tid ^ j;
-			if (ixj > tid) {
-				if ((tid & k) == 0) {
-					if (key(tid) < key(ixj)) {
-						swap(value(tid), value(ixj));
-						swap(key(tid), key(ixj));
-					}
-				} else {
-					if (key(tid) > key(ixj)) {
-						swap(value(tid), value(ixj));
-						swap(key(tid), key(ixj));
-					}
-				}
-			}
-			__syncthreads();
-		}
-	}
-	__syncthreads();
-	if (1 == key(tid) && 0 == key(tid + 1))
-		value(tid + 1) = INT_MAX;
-	values[tid] = value(tid);
-#undef key
-#undef value
-}
-
-__global__ static void neighbourhood(char *neighbours, float *d_distances, int n,
-		int self, int eps_sq) {
+__global__ static void neighbourhood(unsigned int *neighbours,
+		unsigned int *flags, float *d_distances, int n, int self, int eps_sq) {
 	int ix = blockIdx.x * blockDim.x + threadIdx.x;
-	if (ix < n && d_distances[self * n + ix] <= eps_sq)
-		neighbours[ix] = 1;
+	if (ix < n) {
+		neighbours[ix] = ix;
+		if (d_distances[self * n + ix] <= eps_sq)
+			flags[ix] = 1;
+	}
 }
 
 inline static void run_kernel(int *neighbours, int n, int self,
 		float *d_distances, int eps_sq) {
-	static char *neighbourhood_flags = NULL;
-	int blocksize = 64, flags_bytes = n * sizeof(char),
-		neighbours_bytes = n * sizeof(int), *d_neighbours;
+	unsigned int *d_flags, *d_neighbours, *d_neighbours_sorted,
+				 blocksize = 64, flags_bytes = n * sizeof(*d_flags),
+				 neighbours_bytes = n * sizeof(int);
+	size_t *d_num_valid_elems, num_valid_elems;
 	dim3 blocks(n / blocksize), threads(blocksize);
-	char *d_flags;
 
-	if (!neighbourhood_flags)
-		neighbourhood_flags = (char *) malloc(sizeof(char) * n);
 	cudaMalloc((void**) &d_flags, flags_bytes);
 	cudaMalloc((void**) &d_neighbours, neighbours_bytes);
+	cudaMalloc((void**) &d_neighbours_sorted, neighbours_bytes);
+	cudaMalloc((void**) &d_num_valid_elems, sizeof(*d_num_valid_elems));
 	cudaMemset(d_flags, 0, flags_bytes);
-
-	neighbourhood<<<blocks, threads>>>(d_flags, d_distances, n, self, eps_sq);
 	check_cuda_error();
-	bitonicSort<<<1, n, sizeof(int) * n * 2>>>(n, d_flags, d_neighbours);
+
+	neighbourhood<<<blocks, threads>>>(d_neighbours, d_flags, d_distances, n,
+			self, eps_sq);
+	check_cuda_error();
+
+	CUDPPHandle theCudpp;
+	cudppCreate(&theCudpp);
+	CUDPPConfiguration config;
+	config.datatype = CUDPP_INT;
+	config.algorithm = CUDPP_COMPACT;
+	config.options = CUDPP_OPTION_FORWARD;
+	CUDPPHandle planhandle = 0;
+	CUDPPResult result = cudppPlan(theCudpp, &planhandle, config, n, 1, 0);
+	if (CUDPP_SUCCESS != result)
+	{
+		printf("Error creating CUDPPPlan\n");
+		exit(-1);
+	}
+	cudppCompact(planhandle, d_neighbours_sorted, d_num_valid_elems,
+			d_neighbours, d_flags, n);
+
+	result = cudppDestroyPlan(planhandle);
+    if (CUDPP_SUCCESS != result)
+    {
+        printf("Error destroying CUDPPPlan\n");
+        exit(-1);
+    }
+
 	check_cuda_error();
 	cudaThreadSynchronize();
 	check_cuda_error();
 
-	cudaMemcpy(neighbours, d_neighbours, neighbours_bytes, cudaMemcpyDeviceToHost);
+	cudaMemcpy(&num_valid_elems, d_num_valid_elems,
+			sizeof(*d_neighbours_sorted), cudaMemcpyDeviceToHost);
+	cudaMemcpy(neighbours, d_neighbours_sorted, neighbours_bytes,
+			cudaMemcpyDeviceToHost);
+	neighbours[num_valid_elems] = INT_MAX;
 	cudaFree(d_flags);
 	cudaFree(d_neighbours);
-	//fprintf(stderr, "Done\n");
+	cudaFree(d_neighbours_sorted);
+	cudaFree(d_num_valid_elems);
 }
 
 int find_neighbours(int *neighbours, int n, int self, float *d_distances,
