@@ -33,20 +33,6 @@ static void prepare_distance_cache(boid *_boids, int n) {
 	distance_cache_size = n;
 }
 
-static void reload_distance_cache() {
-	int i, j;
-#pragma omp parallel for private(j)
-	for (i = 0; i < distance_cache_size; ++i)
-		for (j = i; j < distance_cache_size; ++j)
-			distance_cache[i + distance_cache_size * j] =
-				distance_cache[j + distance_cache_size * i] =
-				square(boids[j].y - boids[i].y) +
-				square(boids[j].x - boids[i].x);
-	cudaMemcpy(d_distance_cache, distance_cache,
-			square(distance_cache_size) * sizeof(float),
-			cudaMemcpyHostToDevice);
-}
-
 static void free_distance_cache() {
 	free(distance_cache);
 	distance_cache = NULL;
@@ -145,7 +131,7 @@ void simulate(simulation_params *sp) {
 	int i = 0;
 	if (!distance_cache)
 		prepare_distance_cache(sp->boids, sp->n);
-	reload_distance_cache();
+	reload_distance_cache(d_distance_cache, distance_cache, sp->boids, sp->n);
 	#pragma omp parallel for
 	for (i = 0; i < sp->n; ++i)
 		calculate_forces(sp->boids, sp->n, i, sp->eps);

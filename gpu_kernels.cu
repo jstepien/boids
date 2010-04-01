@@ -98,3 +98,26 @@ int find_neighbours(int *neighbours, int n, int self, float *d_distances,
 	run_kernel(neighbours, n, self, d_distances, eps * eps);
 	return neighbour_id;
 }
+
+__global__ void count_distance(boid *boids, float *distance, int n)
+{
+   int ix = blockIdx.x * blockDim.x + threadIdx.x,
+	   iy = blockIdx.y * blockDim.y + threadIdx.y;
+   if (ix < n && iy < n)
+	   distance[ix + n * iy] = square(boids[iy].y - boids[ix].y) +
+		   square(boids[iy].x - boids[ix].x);
+}
+
+void reload_distance_cache(float *d_cache, float *h_cache, boid *boids, int n) {
+	int blocksize = 16, cache_bytes = n * n * sizeof(float),
+		boids_bytes = n * sizeof(boid);
+	dim3 threads(blocksize, blocksize);
+	dim3 blocks(n / blocksize, n / blocksize);
+	static boid *d_boids = NULL;
+	if (!d_boids)
+		cudaMalloc((void**) &d_boids, boids_bytes);
+	cudaMemcpy(d_boids, boids, boids_bytes, cudaMemcpyHostToDevice);
+	count_distance<<<blocks, threads>>>(d_boids, d_cache, n);
+	cudaThreadSynchronize();
+	cudaMemcpy(h_cache, d_cache, cache_bytes, cudaMemcpyDeviceToHost);
+}
