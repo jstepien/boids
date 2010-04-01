@@ -17,7 +17,8 @@ extern "C" {
 	} }
 
 __global__ static void neighbourhood(unsigned int *neighbours,
-		unsigned int *flags, float *d_distances, int n, int self, int eps_sq) {
+		unsigned int *flags, const float *d_distances, const int n,
+		const int self, const int eps_sq) {
 	int ix = blockIdx.x * blockDim.x + threadIdx.x;
 	if (ix < n) {
 		neighbours[ix] = ix;
@@ -90,7 +91,7 @@ int find_neighbours(int *neighbours, int n, int self, float *d_distances,
 	return neighbour_id;
 }
 
-__global__ void count_distance(boid *boids, float *distance, int n)
+__global__ void count_distance(const boid *boids, float *distance, const int n)
 {
    int ix = blockIdx.x * blockDim.x + threadIdx.x,
 	   iy = blockIdx.y * blockDim.y + threadIdx.y;
