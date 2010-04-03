@@ -233,6 +233,12 @@ static boid * prepare_device_boids(int n) {
 	return d_boids;
 }
 
+__global__ static void warmup_kernel(boid *boids, int n) {
+	int ix = blockIdx.x * blockDim.x + threadIdx.x;
+	if (ix < n)
+		boids[ix].x = boids[ix].y + (ix % 3);
+}
+
 void simulate(simulation_params *sp) {
 	static float *d_distance_cache = NULL;
 	static boid *d_boids = NULL;
@@ -240,6 +246,7 @@ void simulate(simulation_params *sp) {
 	if (!d_distance_cache) {
 		d_distance_cache = prepare_distance_cache(sp->n);
 		d_boids = prepare_device_boids(sp->n);
+		warmup_kernel<<<64, 64>>>(d_boids, sp->n);
 	}
 	cudaMemcpy(d_boids, sp->boids, boids_bytes, cudaMemcpyHostToDevice);
 	check_cuda_error();
