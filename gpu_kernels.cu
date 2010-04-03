@@ -8,6 +8,7 @@ extern "C" {
 #include <cudpp.h>
 
 #define square(x) ((x)*(x))
+#define MAX_SPEED 4
 
 #define check_cuda_error() {\
 	if (cudaError_t e = cudaGetLastError()) { \
@@ -182,6 +183,55 @@ void calculate_all_forces(boid* h_boids, int n, int eps, float *d_distance_cache
 	check_cuda_error();
 	calculate_forces<<<blocks, threads>>>(d_boids,
 			d_distance_cache, n, d_neighbours);
+	check_cuda_error();
+	cudaThreadSynchronize();
+	check_cuda_error();
+	cudaMemcpy(h_boids, d_boids, boids_bytes, cudaMemcpyDeviceToHost);
+	check_cuda_error();
+}
+
+__device__ static void normalize_speed(boid* boids) {
+	const float limit_sq = square(MAX_SPEED);
+	int ix = blockIdx.x * blockDim.x + threadIdx.x;
+	float speed_sq = square(boids[ix].vx) + square(boids[ix].vy);
+	if (speed_sq > limit_sq) {
+		float coeff = MAX_SPEED / sqrtf(speed_sq);
+		boids[ix].vy *= coeff;
+		boids[ix].vx *= coeff;
+	}
+}
+
+__global__ static void apply_forces(boid* boids, float dt, int width,
+		int height) {
+	int ix = blockIdx.x * blockDim.x + threadIdx.x;
+	boids[ix].vx += boids[ix].fx * dt;
+	boids[ix].vy += boids[ix].fy * dt;
+	boids[ix].fx = boids[ix].fy = 0;
+	normalize_speed(boids);
+	boids[ix].x += boids[ix].vx * dt;
+	if (boids[ix].x >= width)
+		boids[ix].x -= width;
+	else if (boids[ix].x < 0)
+		boids[ix].x += width;
+	boids[ix].y += boids[ix].vy * dt;
+	if (boids[ix].y >= height)
+		boids[ix].y -= height;
+	else if (boids[ix].y < 0)
+		boids[ix].y += height;
+}
+
+void apply_all_forces(boid* h_boids, int n, float dt, int width, int height) {
+	int blocksize = 64, boids_bytes = n * sizeof(boid);
+	dim3 threads(blocksize), blocks(n / blocksize);
+	static boid *d_boids = NULL;
+	if (!d_boids) {
+		cudaMalloc((void**) &d_boids, boids_bytes);
+		assert(d_boids);
+	}
+	check_cuda_error();
+	cudaMemcpy(d_boids, h_boids, boids_bytes, cudaMemcpyHostToDevice);
+	check_cuda_error();
+	apply_forces<<<blocks, threads>>>(d_boids, dt, width, height);
 	check_cuda_error();
 	cudaThreadSynchronize();
 	check_cuda_error();
