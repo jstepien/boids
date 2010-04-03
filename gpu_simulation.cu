@@ -87,8 +87,8 @@ static void find_neighbours(int *d_neighbours_sorted, int n, int self,
 	check_cuda_error();
 }
 
-__global__ void count_distance(const boid *boids, float *distance, const int n)
-{
+__global__ static void count_distance(const boid *boids, float *distance,
+		const int n) {
    int ix = blockIdx.x * blockDim.x + threadIdx.x,
 	   iy = blockIdx.y * blockDim.y + threadIdx.y;
    if (ix < n && iy < n)
@@ -96,14 +96,14 @@ __global__ void count_distance(const boid *boids, float *distance, const int n)
 		   square(boids[iy].x - boids[ix].x);
 }
 
-void reload_distance_cache(float *d_cache, boid *d_boids, int n) {
+static void reload_distance_cache(float *d_cache, boid *d_boids, int n) {
 	const int blocksize = 16;
 	dim3 threads(blocksize, blocksize);
 	dim3 blocks(n / blocksize, n / blocksize);
 	count_distance<<<blocks, threads>>>(d_boids, d_cache, n);
 }
 
-__device__ void separation(boid *boids, int self, const int *neighbours,
+__device__ static void separation(boid *boids, int self, const int *neighbours,
 		const int n, const float *distance_cache) {
 	float x = 0, y = 0;
 	int count = 0, divisor, i;
@@ -120,7 +120,7 @@ __device__ void separation(boid *boids, int self, const int *neighbours,
 	boids[self].fy = y / divisor;
 }
 
-__device__ void alignment(boid *boids, boid *self, const int *neighbours) {
+__device__ static void alignment(boid *boids, boid *self, const int *neighbours) {
 	float vx = 0, vy = 0;
 	int count = 0, i;
 	const int weight = 10;
@@ -134,7 +134,8 @@ __device__ void alignment(boid *boids, boid *self, const int *neighbours) {
 	self->fy += vy / count / weight;
 }
 
-__device__ void cohesion(const boid *boids, boid *self, const int *neighbours) {
+__device__ static void cohesion(const boid *boids, boid *self,
+		const int *neighbours) {
 	const int weight = 1000;
 	float x = 0, y = 0;
 	int i;
@@ -148,8 +149,8 @@ __device__ void cohesion(const boid *boids, boid *self, const int *neighbours) {
 	self->fy += y / weight;
 }
 
-__global__ void calculate_forces(boid *boids, const float *distance_cache,
-		const int n, const int *neighbours) {
+__global__ static void calculate_forces(boid *boids,
+		const float *distance_cache, const int n, const int *neighbours) {
 	int ix = blockIdx.x * blockDim.x + threadIdx.x;
 	if (ix < n && *(neighbours + n * ix) != INT_MAX) {
 		separation(boids, ix, neighbours + n * ix, n, distance_cache);
@@ -158,7 +159,8 @@ __global__ void calculate_forces(boid *boids, const float *distance_cache,
 	}
 }
 
-void calculate_all_forces(boid* d_boids, int n, int eps, float *d_distance_cache) {
+static void calculate_all_forces(boid* d_boids, int n, int eps,
+		float *d_distance_cache) {
 	const int blocksize = 64;
 	int neighbours_bytes = n * n * sizeof(int);
 	dim3 threads(blocksize), blocks(n / blocksize);
@@ -206,7 +208,7 @@ __global__ static void apply_forces(boid* boids, float dt, int width,
 		boids[ix].y += height;
 }
 
-void apply_all_forces(boid* d_boids, int n, float dt, int width, int height) {
+static void apply_all_forces(boid* d_boids, int n, float dt, int width, int height) {
 	const int blocksize = 64;
 	dim3 threads(blocksize), blocks(n / blocksize);
 	apply_forces<<<blocks, threads>>>(d_boids, dt, width, height);
