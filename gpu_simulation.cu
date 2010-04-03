@@ -29,6 +29,23 @@ __global__ static void neighbourhood(unsigned int *neighbours,
 	}
 }
 
+static CUDPPHandle prepare_compact_plan(int n) {
+	CUDPPHandle theCudpp;
+	cudppCreate(&theCudpp);
+	CUDPPConfiguration config;
+	config.datatype = CUDPP_INT;
+	config.algorithm = CUDPP_COMPACT;
+	config.options = CUDPP_OPTION_FORWARD;
+	CUDPPHandle planhandle = 0;
+	CUDPPResult result = cudppPlan(theCudpp, &planhandle, config, n, 1, 0);
+	if (CUDPP_SUCCESS != result) {
+		printf("Error creating CUDPPPlan\n");
+		exit(-1);
+	}
+	/* Should be cleaned up using `result = cudppDestroyPlan(planhandle);` */
+	return planhandle;
+}
+
 static void find_neighbours(int *d_neighbours_sorted, int n, int self,
 		float *d_distances, int eps) {
 	eps *= eps;
@@ -36,6 +53,7 @@ static void find_neighbours(int *d_neighbours_sorted, int n, int self,
 	unsigned int blocksize = 64, flags_bytes = n * sizeof(*d_flags),
 				 neighbours_bytes = n * sizeof(int);
 	static size_t *d_num_valid_elems = NULL;
+	static CUDPPHandle planhandle = 0;
 	size_t num_valid_elems;
 	dim3 blocks(n / blocksize), threads(blocksize);
 
@@ -51,28 +69,11 @@ static void find_neighbours(int *d_neighbours_sorted, int n, int self,
 			self, eps);
 	check_cuda_error();
 
-	CUDPPHandle theCudpp;
-	cudppCreate(&theCudpp);
-	CUDPPConfiguration config;
-	config.datatype = CUDPP_INT;
-	config.algorithm = CUDPP_COMPACT;
-	config.options = CUDPP_OPTION_FORWARD;
-	CUDPPHandle planhandle = 0;
-	CUDPPResult result = cudppPlan(theCudpp, &planhandle, config, n, 1, 0);
-	if (CUDPP_SUCCESS != result)
-	{
-		printf("Error creating CUDPPPlan\n");
-		exit(-1);
-	}
+	if (!planhandle)
+		planhandle = prepare_compact_plan(n);
+
 	cudppCompact(planhandle, d_neighbours_sorted, d_num_valid_elems,
 			d_neighbours, d_flags, n);
-
-	result = cudppDestroyPlan(planhandle);
-    if (CUDPP_SUCCESS != result)
-    {
-        printf("Error destroying CUDPPPlan\n");
-        exit(-1);
-    }
 
 	check_cuda_error();
 	cudaThreadSynchronize();
