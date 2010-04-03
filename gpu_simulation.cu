@@ -11,6 +11,28 @@ extern "C" {
 #define square(x) ((x)*(x))
 #define MAX_SPEED 4
 
+union boid_pack {
+	char buffer[sizeof(boid)];
+	boid my_boid;
+};
+
+texture<char, 1, cudaReadModeElementType> boids_texture;
+#define boid_tex_byte(offset) tex1Dfetch(boids_texture, (offset))
+#define boid_from_texture(offset) (((boid_pack) { { \
+	boid_tex_byte((offset) + 0), boid_tex_byte(offset + 1), \
+	boid_tex_byte((offset) + 2), boid_tex_byte(offset + 3), \
+	boid_tex_byte((offset) + 4), boid_tex_byte(offset + 5), \
+	boid_tex_byte((offset) + 6), boid_tex_byte(offset + 7), \
+	boid_tex_byte((offset) + 8), boid_tex_byte(offset + 9), \
+	boid_tex_byte((offset) + 10), boid_tex_byte(offset + 11), \
+	boid_tex_byte((offset) + 12), boid_tex_byte(offset + 13), \
+	boid_tex_byte((offset) + 14), boid_tex_byte(offset + 15), \
+	boid_tex_byte((offset) + 16), boid_tex_byte(offset + 17), \
+	boid_tex_byte((offset) + 18), boid_tex_byte(offset + 19), \
+	boid_tex_byte((offset) + 20), boid_tex_byte(offset + 21), \
+	boid_tex_byte((offset) + 22), boid_tex_byte(offset + 23) \
+	} } ).my_boid)
+
 #define check_cuda_error() {\
 	if (cudaError_t e = cudaGetLastError()) { \
 		fprintf(stderr, "%s:%i: %s\n", __FILE__, __LINE__, \
@@ -88,20 +110,21 @@ static void find_neighbours(int *d_neighbours_sorted, int n, int self,
 	check_cuda_error();
 }
 
-__global__ static void count_distance(const boid *boids, float *distance,
-		const int n) {
+__global__ static void count_distance(float *distance, const int n) {
    int ix = blockIdx.x * blockDim.x + threadIdx.x,
-	   iy = blockIdx.y * blockDim.y + threadIdx.y;
+	   iy = blockIdx.y * blockDim.y + threadIdx.y,
+	   off_a = ix * sizeof(boid), off_b = iy * sizeof(boid);
+   boid b = boid_from_texture(off_b);
+   boid a = boid_from_texture(off_a);
    if (ix < n && iy < n)
-	   distance[ix + n * iy] = square(boids[iy].y - boids[ix].y) +
-		   square(boids[iy].x - boids[ix].x);
+	   distance[ix + n * iy] = square(b.y - a.y) + square(b.x - a.x);
 }
 
-static void reload_distance_cache(float *d_cache, boid *d_boids, int n) {
+static void reload_distance_cache(float *d_cache, int n) {
 	const int blocksize = 16;
 	dim3 threads(blocksize, blocksize);
 	dim3 blocks(n / blocksize, n / blocksize);
-	count_distance<<<blocks, threads>>>(d_boids, d_cache, n);
+	count_distance<<<blocks, threads>>>(d_cache, n);
 }
 
 __device__ static void separation(boid *boids, int self, const int *neighbours,
@@ -230,6 +253,8 @@ static boid * prepare_device_boids(int n) {
 	assert(n > 0);
 	cudaMalloc((void**) &d_boids, boids_bytes);
 	assert(d_boids);
+	cudaBindTexture(0, boids_texture, d_boids, n * sizeof(boid));
+	check_cuda_error();
 	return d_boids;
 }
 
@@ -250,7 +275,7 @@ void simulate(simulation_params *sp) {
 	}
 	cudaMemcpy(d_boids, sp->boids, boids_bytes, cudaMemcpyHostToDevice);
 	check_cuda_error();
-	reload_distance_cache(d_distance_cache, d_boids, sp->n);
+	reload_distance_cache(d_distance_cache, sp->n);
 	calculate_all_forces(d_boids, sp->n, sp->eps, d_distance_cache);
 	apply_all_forces(d_boids, sp->n, sp->dt, sp->width, sp->height);
 	cudaThreadSynchronize();
