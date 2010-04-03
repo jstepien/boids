@@ -69,29 +69,36 @@ static CUDPPHandle prepare_compact_plan(int n) {
 	return planhandle;
 }
 
+__global__ static void set_neighbourhood_delimiters(int *neighbours,
+		size_t *num_valid_elems, int n) {
+	const int delim = INT_MAX;
+	int ix = blockIdx.x * blockDim.x + threadIdx.x;
+	if (ix < n)
+		neighbours[ix * n + num_valid_elems[ix] - 1] = delim;
+}
+
 static void find_neighbours(int *d_neighbours_sorted, int n,
 		float *d_distances, int eps) {
 	static unsigned int *d_flags = NULL, *d_neighbours = NULL;
-	static const unsigned int blocksize = 16;
+	static const unsigned int blocksize2d = 16, blocksize = 64;
 	unsigned int flags_bytes = n * n * sizeof(*d_flags),
 				 neighbours_bytes = n * n * sizeof(*d_neighbours);
-	static size_t *d_num_valid_elems = NULL, *num_valid_elems = NULL;
+	static size_t *d_num_valid_elems = NULL;
 	static CUDPPHandle planhandle = 0;
-	static const dim3 threads(blocksize, blocksize);
-	dim3 blocks(n / blocksize, n / blocksize);
+	static const dim3 threads2d(blocksize2d, blocksize2d), threads(blocksize);
+	dim3 blocks2d(n / blocksize, n / blocksize2d), blocks(n / blocksize);
 
 	if (!d_flags) {
 		cudaMalloc((void**) &d_flags, flags_bytes);
 		cudaMalloc((void**) &d_neighbours, neighbours_bytes);
 		cudaMalloc((void**) &d_num_valid_elems, n * sizeof(*d_num_valid_elems));
 		planhandle = prepare_compact_plan(n);
-		num_valid_elems = (size_t *) malloc(n * sizeof(*num_valid_elems));
 	}
 	eps *= eps;
 	cudaMemset(d_flags, 0, flags_bytes);
 	check_cuda_error();
 
-	neighbourhood<<<blocks, threads>>>(d_neighbours, d_flags, d_distances, n,
+	neighbourhood<<<blocks2d, threads2d>>>(d_neighbours, d_flags, d_distances, n,
 			eps);
 	check_cuda_error();
 	cudaThreadSynchronize();
@@ -101,18 +108,9 @@ static void find_neighbours(int *d_neighbours_sorted, int n,
 		cudppCompact(planhandle, d_neighbours_sorted + i * n,
 				d_num_valid_elems + i, d_neighbours + i * n,
 				d_flags + i * n, n);
-
 	check_cuda_error();
-	cudaThreadSynchronize();
-	check_cuda_error();
-
-	cudaMemcpy(num_valid_elems, d_num_valid_elems,
-			n * sizeof(*num_valid_elems), cudaMemcpyDeviceToHost);
-	check_cuda_error();
-	int delim = INT_MAX;
-	for (int i = 0; i < n; ++i)
-		cudaMemcpy(d_neighbours_sorted + n * i + num_valid_elems[i] - 1, &delim,
-				sizeof(delim), cudaMemcpyHostToDevice);
+	set_neighbourhood_delimiters<<<blocks, threads>>>(d_neighbours_sorted,
+			d_num_valid_elems, n);
 	check_cuda_error();
 }
 
