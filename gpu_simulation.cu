@@ -1,11 +1,12 @@
-extern "C" {
-	#include <stdio.h>
-	#include <assert.h>
-	#include "simulation.h"
-	#include "gpu_kernels.h"
-}
-
+#include <math.h>
+#include <assert.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <cuda_runtime.h>
 #include <cudpp.h>
+extern "C" {
+	#include "simulation.h"
+}
 
 #define square(x) ((x)*(x))
 #define MAX_SPEED 4
@@ -95,9 +96,8 @@ __global__ void count_distance(const boid *boids, float *distance, const int n)
 		   square(boids[iy].x - boids[ix].x);
 }
 
-void reload_distance_cache(float *d_cache, float *h_cache, boid *boids, int n) {
-	int blocksize = 16, cache_bytes = n * n * sizeof(float),
-		boids_bytes = n * sizeof(boid);
+void reload_distance_cache(float *d_cache, boid *boids, int n) {
+	int blocksize = 16, boids_bytes = n * sizeof(boid);
 	dim3 threads(blocksize, blocksize);
 	dim3 blocks(n / blocksize, n / blocksize);
 	static boid *d_boids = NULL;
@@ -106,7 +106,6 @@ void reload_distance_cache(float *d_cache, float *h_cache, boid *boids, int n) {
 	cudaMemcpy(d_boids, boids, boids_bytes, cudaMemcpyHostToDevice);
 	count_distance<<<blocks, threads>>>(d_boids, d_cache, n);
 	cudaThreadSynchronize();
-	cudaMemcpy(h_cache, d_cache, cache_bytes, cudaMemcpyDeviceToHost);
 }
 
 __device__ void separation(boid *boids, int self, const int *neighbours,
@@ -237,4 +236,21 @@ void apply_all_forces(boid* h_boids, int n, float dt, int width, int height) {
 	check_cuda_error();
 	cudaMemcpy(h_boids, d_boids, boids_bytes, cudaMemcpyDeviceToHost);
 	check_cuda_error();
+}
+
+static float* prepare_distance_cache(boid *_boids, int n) {
+	float *d_distance_cache = NULL;
+	assert(n > 0);
+	cudaMalloc((void**) &d_distance_cache, n * n * sizeof(float));
+	assert(d_distance_cache);
+	return d_distance_cache;
+}
+
+void simulate(simulation_params *sp) {
+	static float *d_distance_cache = NULL;
+	if (!d_distance_cache)
+		d_distance_cache = prepare_distance_cache(sp->boids, sp->n);
+	reload_distance_cache(d_distance_cache, sp->boids, sp->n);
+	calculate_all_forces(sp->boids, sp->n, sp->eps, d_distance_cache);
+	apply_all_forces(sp->boids, sp->n, sp->dt, sp->width, sp->height);
 }

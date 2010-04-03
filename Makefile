@@ -3,7 +3,7 @@ CFLAGS+=`pkg-config --cflags ${DEPS}`
 LDFLAGS+=`pkg-config --libs ${DEPS}`
 GPULDFLAGS+=${LDFLAGS} -lcudart -lcudpp -lcutil
 CPUOBJECTS=ui.o cpu_simulation.o
-GPUOBJECTS=ui.o gpu_simulation.o gpu_kernels.o
+GPUOBJECTS=ui.o gpu_simulation.o
 TARGETS=cpu gpu
 .SUFFIXES: .cu
 .PHONY: all
