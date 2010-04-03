@@ -48,29 +48,29 @@ static CUDPPHandle prepare_compact_plan(int n) {
 
 static void find_neighbours(int *d_neighbours_sorted, int n, int self,
 		float *d_distances, int eps) {
-	eps *= eps;
 	static unsigned int *d_flags = NULL, *d_neighbours = NULL;
-	unsigned int blocksize = 64, flags_bytes = n * sizeof(*d_flags),
+	static const unsigned int blocksize = 64;
+	unsigned int flags_bytes = n * sizeof(*d_flags),
 				 neighbours_bytes = n * sizeof(int);
 	static size_t *d_num_valid_elems = NULL;
 	static CUDPPHandle planhandle = 0;
+	static const dim3 threads(blocksize);
 	size_t num_valid_elems;
-	dim3 blocks(n / blocksize), threads(blocksize);
+	dim3 blocks(n / blocksize);
 
 	if (!d_flags) {
 		cudaMalloc((void**) &d_flags, flags_bytes);
 		cudaMalloc((void**) &d_neighbours, neighbours_bytes);
 		cudaMalloc((void**) &d_num_valid_elems, sizeof(*d_num_valid_elems));
+		planhandle = prepare_compact_plan(n);
 	}
+	eps *= eps;
 	cudaMemset(d_flags, 0, flags_bytes);
 	check_cuda_error();
 
 	neighbourhood<<<blocks, threads>>>(d_neighbours, d_flags, d_distances, n,
 			self, eps);
 	check_cuda_error();
-
-	if (!planhandle)
-		planhandle = prepare_compact_plan(n);
 
 	cudppCompact(planhandle, d_neighbours_sorted, d_num_valid_elems,
 			d_neighbours, d_flags, n);
