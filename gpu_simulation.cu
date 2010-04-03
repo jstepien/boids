@@ -42,12 +42,14 @@ texture<char, 1, cudaReadModeElementType> boids_texture;
 
 __global__ static void neighbourhood(unsigned int *neighbours,
 		unsigned int *flags, const float *d_distances, const int n,
-		const int self, const int eps_sq) {
-	int ix = blockIdx.x * blockDim.x + threadIdx.x;
-	if (ix < n) {
-		neighbours[ix] = ix;
-		if (d_distances[self * n + ix] <= eps_sq)
-			flags[ix] = 1;
+		const int eps_sq) {
+	int ix = blockIdx.x * blockDim.x + threadIdx.x,
+		iy = blockIdx.y * blockDim.y + threadIdx.y;
+	int offset = ix + iy * n;
+	if (ix < n && iy < n) {
+		neighbours[offset] = ix;
+		if (d_distances[offset] <= eps_sq)
+			flags[offset] = 1;
 	}
 }
 
@@ -68,45 +70,50 @@ static CUDPPHandle prepare_compact_plan(int n) {
 	return planhandle;
 }
 
-static void find_neighbours(int *d_neighbours_sorted, int n, int self,
+static void find_neighbours(int *d_neighbours_sorted, int n,
 		float *d_distances, int eps) {
 	static unsigned int *d_flags = NULL, *d_neighbours = NULL;
-	static const unsigned int blocksize = 64;
-	unsigned int flags_bytes = n * sizeof(*d_flags),
-				 neighbours_bytes = n * sizeof(int);
-	static size_t *d_num_valid_elems = NULL;
+	static const unsigned int blocksize = 16;
+	unsigned int flags_bytes = n * n * sizeof(*d_flags),
+				 neighbours_bytes = n * n * sizeof(*d_neighbours);
+	static size_t *d_num_valid_elems = NULL, *num_valid_elems = NULL;
 	static CUDPPHandle planhandle = 0;
-	static const dim3 threads(blocksize);
-	size_t num_valid_elems;
-	dim3 blocks(n / blocksize);
+	static const dim3 threads(blocksize, blocksize);
+	dim3 blocks(n / blocksize, n / blocksize);
 
 	if (!d_flags) {
 		cudaMalloc((void**) &d_flags, flags_bytes);
 		cudaMalloc((void**) &d_neighbours, neighbours_bytes);
-		cudaMalloc((void**) &d_num_valid_elems, sizeof(*d_num_valid_elems));
+		cudaMalloc((void**) &d_num_valid_elems, n * sizeof(*d_num_valid_elems));
 		planhandle = prepare_compact_plan(n);
+		num_valid_elems = (size_t *) malloc(n * sizeof(*num_valid_elems));
 	}
 	eps *= eps;
 	cudaMemset(d_flags, 0, flags_bytes);
 	check_cuda_error();
 
 	neighbourhood<<<blocks, threads>>>(d_neighbours, d_flags, d_distances, n,
-			self, eps);
+			eps);
+	check_cuda_error();
+	cudaThreadSynchronize();
 	check_cuda_error();
 
-	cudppCompact(planhandle, d_neighbours_sorted, d_num_valid_elems,
-			d_neighbours, d_flags, n);
+	for (int i = 0; i < n; ++i)
+		cudppCompact(planhandle, d_neighbours_sorted + i * n,
+				d_num_valid_elems + i, d_neighbours + i * n,
+				d_flags + i * n, n);
 
 	check_cuda_error();
 	cudaThreadSynchronize();
 	check_cuda_error();
 
-	cudaMemcpy(&num_valid_elems, d_num_valid_elems,
-			sizeof(*d_neighbours_sorted), cudaMemcpyDeviceToHost);
+	cudaMemcpy(num_valid_elems, d_num_valid_elems,
+			n * sizeof(*num_valid_elems), cudaMemcpyDeviceToHost);
 	check_cuda_error();
 	int delim = INT_MAX;
-	cudaMemcpy(d_neighbours_sorted + num_valid_elems - 1, &delim, sizeof(delim),
-			cudaMemcpyHostToDevice);
+	for (int i = 0; i < n; ++i)
+		cudaMemcpy(d_neighbours_sorted + n * i + num_valid_elems[i] - 1, &delim,
+				sizeof(delim), cudaMemcpyHostToDevice);
 	check_cuda_error();
 }
 
@@ -194,8 +201,7 @@ static void calculate_all_forces(boid* d_boids, int n, int eps,
 		assert(d_neighbours);
 	}
 	check_cuda_error();
-	for (int i = 0; i < n; ++i)
-		find_neighbours(d_neighbours + n * i, n, i, d_distance_cache, eps);
+	find_neighbours(d_neighbours, n, d_distance_cache, eps);
 	check_cuda_error();
 	calculate_forces<<<blocks, threads>>>(d_boids, d_distance_cache, n,
 			d_neighbours);
