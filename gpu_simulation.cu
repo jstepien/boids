@@ -44,12 +44,11 @@ __global__ static void neighbourhood(unsigned int *neighbours,
 		unsigned int *flags, const float *d_distances, const int n,
 		const int eps_sq) {
 	int ix = blockIdx.x * blockDim.x + threadIdx.x,
-		iy = blockIdx.y * blockDim.y + threadIdx.y;
-	int offset = ix + iy * n;
-	if (ix < n && iy < n) {
+		iy = blockIdx.y * blockDim.y + threadIdx.y,
+		offset = ix + iy * n;
+	if (ix < n && iy < n && d_distances[offset] <= eps_sq) {
 		neighbours[offset] = ix;
-		if (d_distances[offset] <= eps_sq)
-			flags[offset] = 1;
+		flags[offset] = 1;
 	}
 }
 
