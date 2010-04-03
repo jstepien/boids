@@ -96,16 +96,11 @@ __global__ void count_distance(const boid *boids, float *distance, const int n)
 		   square(boids[iy].x - boids[ix].x);
 }
 
-void reload_distance_cache(float *d_cache, boid *boids, int n) {
-	int blocksize = 16, boids_bytes = n * sizeof(boid);
+void reload_distance_cache(float *d_cache, boid *d_boids, int n) {
+	const int blocksize = 16;
 	dim3 threads(blocksize, blocksize);
 	dim3 blocks(n / blocksize, n / blocksize);
-	static boid *d_boids = NULL;
-	if (!d_boids)
-		cudaMalloc((void**) &d_boids, boids_bytes);
-	cudaMemcpy(d_boids, boids, boids_bytes, cudaMemcpyHostToDevice);
 	count_distance<<<blocks, threads>>>(d_boids, d_cache, n);
-	cudaThreadSynchronize();
 }
 
 __device__ void separation(boid *boids, int self, const int *neighbours,
@@ -163,29 +158,21 @@ __global__ void calculate_forces(boid *boids, const float *distance_cache,
 	}
 }
 
-void calculate_all_forces(boid* h_boids, int n, int eps, float *d_distance_cache) {
-	int blocksize = 64, neighbours_bytes = n * n * sizeof(int),
-		boids_bytes = n * sizeof(boid);
+void calculate_all_forces(boid* d_boids, int n, int eps, float *d_distance_cache) {
+	const int blocksize = 64;
+	int neighbours_bytes = n * n * sizeof(int);
 	dim3 threads(blocksize), blocks(n / blocksize);
-	static boid *d_boids = NULL;
 	static int *d_neighbours = NULL;
-	if (!d_boids) {
-		cudaMalloc((void**) &d_boids, boids_bytes);
+	if (!d_neighbours) {
 		cudaMalloc((void**) &d_neighbours, neighbours_bytes);
-		assert(d_boids && d_neighbours);
+		assert(d_neighbours);
 	}
 	check_cuda_error();
 	for (int i = 0; i < n; ++i)
 		find_neighbours(d_neighbours + n * i, n, i, d_distance_cache, eps);
 	check_cuda_error();
-	cudaMemcpy(d_boids, h_boids, boids_bytes, cudaMemcpyHostToDevice);
-	check_cuda_error();
-	calculate_forces<<<blocks, threads>>>(d_boids,
-			d_distance_cache, n, d_neighbours);
-	check_cuda_error();
-	cudaThreadSynchronize();
-	check_cuda_error();
-	cudaMemcpy(h_boids, d_boids, boids_bytes, cudaMemcpyDeviceToHost);
+	calculate_forces<<<blocks, threads>>>(d_boids, d_distance_cache, n,
+			d_neighbours);
 	check_cuda_error();
 }
 
@@ -219,26 +206,14 @@ __global__ static void apply_forces(boid* boids, float dt, int width,
 		boids[ix].y += height;
 }
 
-void apply_all_forces(boid* h_boids, int n, float dt, int width, int height) {
-	int blocksize = 64, boids_bytes = n * sizeof(boid);
+void apply_all_forces(boid* d_boids, int n, float dt, int width, int height) {
+	const int blocksize = 64;
 	dim3 threads(blocksize), blocks(n / blocksize);
-	static boid *d_boids = NULL;
-	if (!d_boids) {
-		cudaMalloc((void**) &d_boids, boids_bytes);
-		assert(d_boids);
-	}
-	check_cuda_error();
-	cudaMemcpy(d_boids, h_boids, boids_bytes, cudaMemcpyHostToDevice);
-	check_cuda_error();
 	apply_forces<<<blocks, threads>>>(d_boids, dt, width, height);
-	check_cuda_error();
-	cudaThreadSynchronize();
-	check_cuda_error();
-	cudaMemcpy(h_boids, d_boids, boids_bytes, cudaMemcpyDeviceToHost);
 	check_cuda_error();
 }
 
-static float* prepare_distance_cache(boid *_boids, int n) {
+static float* prepare_distance_cache(int n) {
 	float *d_distance_cache = NULL;
 	assert(n > 0);
 	cudaMalloc((void**) &d_distance_cache, n * n * sizeof(float));
@@ -246,11 +221,30 @@ static float* prepare_distance_cache(boid *_boids, int n) {
 	return d_distance_cache;
 }
 
+static boid * prepare_device_boids(int n) {
+	int boids_bytes = n * sizeof(boid);
+	boid *d_boids = NULL;
+	assert(n > 0);
+	cudaMalloc((void**) &d_boids, boids_bytes);
+	assert(d_boids);
+	return d_boids;
+}
+
 void simulate(simulation_params *sp) {
 	static float *d_distance_cache = NULL;
-	if (!d_distance_cache)
-		d_distance_cache = prepare_distance_cache(sp->boids, sp->n);
-	reload_distance_cache(d_distance_cache, sp->boids, sp->n);
-	calculate_all_forces(sp->boids, sp->n, sp->eps, d_distance_cache);
-	apply_all_forces(sp->boids, sp->n, sp->dt, sp->width, sp->height);
+	static boid *d_boids = NULL;
+	int boids_bytes = sp->n * sizeof(boid);
+	if (!d_distance_cache) {
+		d_distance_cache = prepare_distance_cache(sp->n);
+		d_boids = prepare_device_boids(sp->n);
+	}
+	cudaMemcpy(d_boids, sp->boids, boids_bytes, cudaMemcpyHostToDevice);
+	check_cuda_error();
+	reload_distance_cache(d_distance_cache, d_boids, sp->n);
+	calculate_all_forces(d_boids, sp->n, sp->eps, d_distance_cache);
+	apply_all_forces(d_boids, sp->n, sp->dt, sp->width, sp->height);
+	cudaThreadSynchronize();
+	check_cuda_error();
+	cudaMemcpy(sp->boids, d_boids, boids_bytes, cudaMemcpyDeviceToHost);
+	check_cuda_error();
 }
