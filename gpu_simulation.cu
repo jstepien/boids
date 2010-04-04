@@ -86,7 +86,7 @@ static void find_neighbours(int *d_neighbours_sorted, int n,
 	static size_t *d_num_valid_elems = NULL;
 	static CUDPPHandle planhandle = 0;
 	static const dim3 threads2d(blocksize2d, blocksize2d), threads(blocksize);
-	dim3 blocks2d(n / blocksize, n / blocksize2d), blocks(n / blocksize);
+	dim3 blocks2d(n / blocksize2d, n / blocksize2d), blocks(n / blocksize);
 
 	if (!d_flags) {
 		cudaMalloc((void**) &d_flags, flags_bytes);
