@@ -52,13 +52,33 @@ __global__ static void neighbourhood(unsigned int *neighbours,
 	}
 }
 
-static CUDPPHandle prepare_compact_plan(int n) {
+__global__ static void compact(int *neighbours_out,
+		unsigned int *neighbours_in, unsigned int *scanned_flags, int n) {
+	const int delim = INT_MAX;
+	int ix = blockIdx.x * blockDim.x + threadIdx.x,
+		iy = blockIdx.y * blockDim.y + threadIdx.y,
+		offset = iy * n;
+	if (iy < n) {
+		if (0 == ix) {
+			if (1 == scanned_flags[offset])
+				neighbours_out[offset] = neighbours_in[offset];
+			neighbours_out[offset + scanned_flags[offset + n - 1]] = delim;
+		} else if (ix < n && scanned_flags[offset + ix] >
+				scanned_flags[offset + ix - 1]) {
+			neighbours_out[offset + scanned_flags[offset + ix] - 1] =
+				neighbours_in[offset + ix];
+		}
+	}
+}
+
+static CUDPPHandle prepare_scan_plan(int n) {
 	CUDPPHandle theCudpp;
 	cudppCreate(&theCudpp);
 	CUDPPConfiguration config;
 	config.datatype = CUDPP_INT;
-	config.algorithm = CUDPP_COMPACT;
+	config.algorithm = CUDPP_SCAN;
 	config.options = CUDPP_OPTION_FORWARD;
+	config.op = CUDPP_ADD;
 	CUDPPHandle planhandle = 0;
 	CUDPPResult result = cudppPlan(theCudpp, &planhandle, config, n, 1, 0);
 	if (CUDPP_SUCCESS != result) {
@@ -69,21 +89,12 @@ static CUDPPHandle prepare_compact_plan(int n) {
 	return planhandle;
 }
 
-__global__ static void set_neighbourhood_delimiters(int *neighbours,
-		size_t *num_valid_elems, int n) {
-	const int delim = INT_MAX;
-	int ix = blockIdx.x * blockDim.x + threadIdx.x;
-	if (ix < n)
-		neighbours[ix * n + num_valid_elems[ix] - 1] = delim;
-}
-
 static void find_neighbours(int *d_neighbours_sorted, int n,
 		float *d_distances, int eps) {
 	static unsigned int *d_flags = NULL, *d_neighbours = NULL;
 	static const unsigned int blocksize2d = 16, blocksize = 64;
 	unsigned int flags_bytes = n * n * sizeof(*d_flags),
 				 neighbours_bytes = n * n * sizeof(*d_neighbours);
-	static size_t *d_num_valid_elems = NULL;
 	static CUDPPHandle planhandle = 0;
 	static const dim3 threads2d(blocksize2d, blocksize2d), threads(blocksize);
 	dim3 blocks2d(n / blocksize2d, n / blocksize2d), blocks(n / blocksize);
@@ -91,8 +102,7 @@ static void find_neighbours(int *d_neighbours_sorted, int n,
 	if (!d_flags) {
 		cudaMalloc((void**) &d_flags, flags_bytes);
 		cudaMalloc((void**) &d_neighbours, neighbours_bytes);
-		cudaMalloc((void**) &d_num_valid_elems, n * sizeof(*d_num_valid_elems));
-		planhandle = prepare_compact_plan(n);
+		planhandle = prepare_scan_plan(n);
 	}
 	eps *= eps;
 	cudaMemset(d_flags, 0, flags_bytes);
@@ -105,12 +115,9 @@ static void find_neighbours(int *d_neighbours_sorted, int n,
 	check_cuda_error();
 
 	for (int i = 0; i < n; ++i)
-		cudppCompact(planhandle, d_neighbours_sorted + i * n,
-				d_num_valid_elems + i, d_neighbours + i * n,
-				d_flags + i * n, n);
-	check_cuda_error();
-	set_neighbourhood_delimiters<<<blocks, threads>>>(d_neighbours_sorted,
-			d_num_valid_elems, n);
+		cudppScan(planhandle, d_flags + i * n, d_flags + i * n, n);
+	compact<<<blocks2d, threads2d>>>(d_neighbours_sorted, d_neighbours,
+			d_flags, n);
 	check_cuda_error();
 }
 
