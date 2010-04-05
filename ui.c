@@ -77,12 +77,15 @@ static boid* build_flock(int n) {
 	return boids;
 }
 
-static void init_video(SDL_Surface **screen) {
+static void init_video(SDL_Surface **screen, int fullscreen) {
 	if (SDL_Init(SDL_INIT_VIDEO) < 0 ) {
 		*screen = NULL;
 		return;
 	}
-	*screen = SDL_SetVideoMode(WIDTH, HEIGHT, DEPTH, SDL_HWSURFACE);
+	int flags = SDL_HWSURFACE;
+	if (fullscreen)
+		flags |= SDL_FULLSCREEN;
+	*screen = SDL_SetVideoMode(WIDTH, HEIGHT, DEPTH, flags);
 	if (!*screen)
 		SDL_Quit();
 }
@@ -126,20 +129,25 @@ static void simulation_loop(SDL_Surface *screen, simulation_params *sp) {
 }
 
 static void usage(const char* name) {
-	fprintf(stderr, "Usage: %s n\n", name);
+	fprintf(stderr, "Usage: %s [-f] n\n", name);
 	exit(1);
 }
 
 int main(int argc, char* argv[]) {
 	SDL_Surface *screen;
+	boid *boids;
+	int fullscreen = 0, argptr = 1;
 	simulation_params sp = {WIDTH, HEIGHT, NULL, -1, EPS, DT, NULL};
-	if (argc != 2)
+	if (argc < 2)
 		usage(*argv);
-	sp.n = atoi(argv[1]);
+	if (0 == strcmp("-f", argv[1])) {
+		fullscreen = 1;
+		++argptr;
+	}
+	sp.n = atoi(argv[argptr]);
 	if (sp.n <= 0)
 		usage(*argv);
-	boid *boids;
-	init_video(&screen);
+	init_video(&screen, fullscreen);
 	draw_loading(screen);
 	boids = build_flock(sp.n);
 	assert(boids);
