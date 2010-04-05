@@ -15,14 +15,6 @@
 
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof(*x))
 
-void setpixel(SDL_Surface *screen, int x, int y, Uint8 r, Uint8 g, Uint8 b) {
-	Uint32 *pixmem32;
-	Uint32 colour;  
-	colour = SDL_MapRGB(screen->format, r, g, b);
-	pixmem32 = (Uint32*) screen->pixels + y * screen->pitch / 4 + x;
-	*pixmem32 = colour;
-}
-
 static const char loading_sprite[][25] = {
 	{1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, },
 	{1, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 0, },
@@ -31,6 +23,12 @@ static const char loading_sprite[][25] = {
 	{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, },
 	{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, },
 };
+
+static void set_pixel(SDL_Surface *screen, int x, int y,
+		Uint8 r, Uint8 g, Uint8 b) {
+	Uint32 *pixmem32 = (Uint32*) screen->pixels + y * screen->pitch / 4 + x;
+	*pixmem32 = SDL_MapRGB(screen->format, r, g, b);
+}
 
 static void draw_loading(SDL_Surface *scrn) {
 	const int x_off = WIDTH / 2 - ARRAY_SIZE(*loading_sprite),
@@ -41,28 +39,28 @@ static void draw_loading(SDL_Surface *scrn) {
 	for (y = 0; y < 2 * ARRAY_SIZE(loading_sprite); y += 2)
 		for (x = 0; x < 2 * ARRAY_SIZE(*loading_sprite); x += 2)
 			if (loading_sprite[y / 2][x / 2]) {
-				setpixel(scrn, x + x_off, y + y_off, 0xff, 0xff, 0xff);
-				setpixel(scrn, x + 1 + x_off, y + y_off, 0xff, 0xff, 0xff);
-				setpixel(scrn, x + x_off, y + 1 + y_off, 0xff, 0xff, 0xff);
-				setpixel(scrn, x + 1 + x_off, y + 1 + y_off, 0xff, 0xff, 0xff);
+				set_pixel(scrn, x + x_off, y + y_off, 0xff, 0xff, 0xff);
+				set_pixel(scrn, x + 1 + x_off, y + y_off, 0xff, 0xff, 0xff);
+				set_pixel(scrn, x + x_off, y + 1 + y_off, 0xff, 0xff, 0xff);
+				set_pixel(scrn, x + 1 + x_off, y + 1 + y_off, 0xff, 0xff, 0xff);
 			}
 	if (SDL_MUSTLOCK(scrn))
 		SDL_UnlockSurface(scrn);
 	SDL_Flip(scrn);
 }
 
-void DrawScreen(SDL_Surface* screen, boid* boids, int n) { 
+static void draw_boids(SDL_Surface* screen, boid* boids, int n) {
 	if (SDL_MUSTLOCK(screen) && SDL_LockSurface(screen) < 0)
 		exit(1);
 	memset(screen->pixels, 0, HEIGHT * screen->pitch);
 	while (--n >= 0)
-		setpixel(screen, boids[n].x, boids[n].y, 0xff, 0xff, 0xff);
+		set_pixel(screen, boids[n].x, boids[n].y, 0xff, 0xff, 0xff);
 	if (SDL_MUSTLOCK(screen))
 		SDL_UnlockSurface(screen);
 	SDL_Flip(screen); 
 }
 
-boid* build_flock(int n) {
+static boid* build_flock(int n) {
 	boid *boids = calloc(n, sizeof(boid));
 	int sum = n;
 	if (!boids)
@@ -82,7 +80,7 @@ boid* build_flock(int n) {
 	return boids;
 }
 
-void init_video(SDL_Surface **screen) {
+static void init_video(SDL_Surface **screen) {
 	if (SDL_Init(SDL_INIT_VIDEO) < 0 ) {
 		*screen = NULL;
 		return;
@@ -92,14 +90,14 @@ void init_video(SDL_Surface **screen) {
 		SDL_Quit();
 }
 
-void print_stats(int probes_per_avg, int time_total) {
-	char buffer[256];
+static void print_stats(int probes_per_avg, int time_total) {
+	char buffer[ARRAY_SIZE("Simlations/s: 12345678901234567890\0")];
 	snprintf(buffer, sizeof(buffer), "Simlations/s: %f",
 			1e6f * probes_per_avg / time_total);
 	SDL_WM_SetCaption(buffer, buffer);
 }
 
-void simulation_loop(SDL_Surface *screen, simulation_params *sp) {
+static void simulation_loop(SDL_Surface *screen, simulation_params *sp) {
 	const int probes_per_avg = 100;
 	SDL_Event event;
 	int keypress = 0, probes = 0, time_total = 0;
@@ -108,7 +106,7 @@ void simulation_loop(SDL_Surface *screen, simulation_params *sp) {
 		gettimeofday(&then, NULL);
 		simulate(sp);
 		gettimeofday(&now, NULL);
-		DrawScreen(screen, sp->boids, sp->n);
+		draw_boids(screen, sp->boids, sp->n);
 		while (SDL_PollEvent(&event)) {      
 			switch (event.type) {
 				case SDL_QUIT:
