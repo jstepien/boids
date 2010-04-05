@@ -272,9 +272,9 @@ void simulate(simulation_params *sp) {
 		d_distance_cache = prepare_distance_cache(sp->n);
 		d_boids = prepare_device_boids(sp->n);
 		warmup_kernel<<<64, 64>>>(d_boids, sp->n);
+		cudaMemcpy(d_boids, sp->boids, boids_bytes, cudaMemcpyHostToDevice);
+		check_cuda_error();
 	}
-	cudaMemcpy(d_boids, sp->boids, boids_bytes, cudaMemcpyHostToDevice);
-	check_cuda_error();
 	reload_distance_cache(d_distance_cache, sp->n);
 	calculate_all_forces(d_boids, sp->n, sp->eps, d_distance_cache);
 	apply_all_forces(d_boids, sp->n, sp->dt, sp->width, sp->height);
