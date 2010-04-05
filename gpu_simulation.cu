@@ -32,6 +32,7 @@ texture<char, 1, cudaReadModeElementType> boids_texture;
 	boid_tex_byte((offset) + 20), boid_tex_byte(offset + 21), \
 	boid_tex_byte((offset) + 22), boid_tex_byte(offset + 23) \
 	} } ).my_boid)
+texture<unsigned int, 1, cudaReadModeElementType> flags_texture;
 
 #define check_cuda_error() {\
 	if (cudaError_t e = cudaGetLastError()) { \
@@ -57,15 +58,17 @@ __global__ static void compact(int *neighbours,
 	int ix = blockIdx.x * blockDim.x + threadIdx.x,
 		iy = blockIdx.y * blockDim.y + threadIdx.y,
 		offset = iy * n;
+#define scanned_flags(x) tex1Dfetch(flags_texture, (x))
 	if (iy < n) {
 		if (0 == ix) {
-			neighbours[offset + scanned_flags[offset + n - 1]] = delim;
-		} else if (ix < n && scanned_flags[offset + ix] >
-				scanned_flags[offset + ix - 1]) {
-			neighbours[offset + scanned_flags[offset + ix] - 1] =
+			neighbours[offset + scanned_flags(offset + n - 1)] = delim;
+		} else if (ix < n && scanned_flags(offset + ix) >
+				scanned_flags(offset + ix - 1)) {
+			neighbours[offset + scanned_flags(offset + ix) - 1] =
 				neighbours[offset + ix];
 		}
 	}
+#undef scanned_flags
 }
 
 static CUDPPHandle prepare_scan_plan(int n, size_t pitch) {
@@ -98,6 +101,8 @@ static void find_neighbours(int *d_neighbours, int n, float *d_distances,
 		size_t pitch;
 		cudaMallocPitch((void**) &d_flags, &pitch, n * sizeof(*d_flags), n);
 		planhandle = prepare_scan_plan(n, pitch / sizeof(*d_flags));
+		cudaBindTexture(0, flags_texture, d_flags, n * n * sizeof(*d_flags));
+		check_cuda_error();
 	}
 	cudaMemset(d_flags, 0, flags_bytes);
 	neighbourhood<<<blocks, threads>>>(d_neighbours, d_flags, d_distances, n,
