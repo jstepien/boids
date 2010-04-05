@@ -71,16 +71,16 @@ __global__ static void compact(int *neighbours_out,
 	}
 }
 
-static CUDPPHandle prepare_scan_plan(int n) {
+static CUDPPHandle prepare_scan_plan(int n, size_t pitch) {
 	CUDPPHandle theCudpp;
 	cudppCreate(&theCudpp);
 	CUDPPConfiguration config;
-	config.datatype = CUDPP_INT;
+	config.datatype = CUDPP_UINT;
 	config.algorithm = CUDPP_SCAN;
 	config.options = CUDPP_OPTION_FORWARD;
 	config.op = CUDPP_ADD;
 	CUDPPHandle planhandle = 0;
-	CUDPPResult result = cudppPlan(theCudpp, &planhandle, config, n, 1, 0);
+	CUDPPResult result = cudppPlan(theCudpp, &planhandle, config, n, n, pitch);
 	if (CUDPP_SUCCESS != result) {
 		printf("Error creating CUDPPPlan\n");
 		exit(-1);
@@ -98,27 +98,18 @@ static void find_neighbours(int *d_neighbours_sorted, int n,
 	static CUDPPHandle planhandle = 0;
 	static const dim3 threads2d(blocksize2d, blocksize2d), threads(blocksize);
 	dim3 blocks2d(n / blocksize2d, n / blocksize2d), blocks(n / blocksize);
-
 	if (!d_flags) {
-		cudaMalloc((void**) &d_flags, flags_bytes);
+		size_t pitch;
+		cudaMallocPitch((void**) &d_flags, &pitch, n * sizeof(*d_flags), n);
 		cudaMalloc((void**) &d_neighbours, neighbours_bytes);
-		planhandle = prepare_scan_plan(n);
+		planhandle = prepare_scan_plan(n, pitch / sizeof(*d_flags));
 	}
-	eps *= eps;
 	cudaMemset(d_flags, 0, flags_bytes);
-	check_cuda_error();
-
 	neighbourhood<<<blocks2d, threads2d>>>(d_neighbours, d_flags, d_distances, n,
-			eps);
-	check_cuda_error();
-	cudaThreadSynchronize();
-	check_cuda_error();
-
-	for (int i = 0; i < n; ++i)
-		cudppScan(planhandle, d_flags + i * n, d_flags + i * n, n);
+			eps * eps);
+	cudppMultiScan(planhandle, d_flags, d_flags, n, n);
 	compact<<<blocks2d, threads2d>>>(d_neighbours_sorted, d_neighbours,
 			d_flags, n);
-	check_cuda_error();
 }
 
 __global__ static void count_distance(float *distance, const int n) {
