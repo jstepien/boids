@@ -13,6 +13,8 @@
 #define EPS 10
 #define DT 0.1f
 
+#define ARRAY_SIZE(x) (sizeof(x) / sizeof(*x))
+
 void setpixel(SDL_Surface *screen, int x, int y, Uint8 r, Uint8 g, Uint8 b) {
 	Uint32 *pixmem32;
 	Uint32 colour;  
@@ -21,6 +23,33 @@ void setpixel(SDL_Surface *screen, int x, int y, Uint8 r, Uint8 g, Uint8 b) {
 	*pixmem32 = colour;
 }
 
+static const char loading_sprite[][25] = {
+	{1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, },
+	{1, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 0, },
+	{1, 0, 0, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, },
+	{1, 1, 1, 0, 0, 1, 0, 0, 0, 1, 1, 0, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 0, 1, 1, },
+	{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, },
+	{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, },
+};
+
+static void draw_loading(SDL_Surface *scrn) {
+	const int x_off = WIDTH / 2 - ARRAY_SIZE(*loading_sprite),
+		  y_off = HEIGHT / 2 - ARRAY_SIZE(loading_sprite);
+	int x, y;
+	if (SDL_MUSTLOCK(scrn) && SDL_LockSurface(scrn) < 0)
+		exit(1);
+	for (y = 0; y < 2 * ARRAY_SIZE(loading_sprite); y += 2)
+		for (x = 0; x < 2 * ARRAY_SIZE(*loading_sprite); x += 2)
+			if (loading_sprite[y / 2][x / 2]) {
+				setpixel(scrn, x + x_off, y + y_off, 0xff, 0xff, 0xff);
+				setpixel(scrn, x + 1 + x_off, y + y_off, 0xff, 0xff, 0xff);
+				setpixel(scrn, x + x_off, y + 1 + y_off, 0xff, 0xff, 0xff);
+				setpixel(scrn, x + 1 + x_off, y + 1 + y_off, 0xff, 0xff, 0xff);
+			}
+	if (SDL_MUSTLOCK(scrn))
+		SDL_UnlockSurface(scrn);
+	SDL_Flip(scrn);
+}
 
 void DrawScreen(SDL_Surface* screen, boid* boids, int n) { 
 	if (SDL_MUSTLOCK(screen) && SDL_LockSurface(screen) < 0)
@@ -110,6 +139,7 @@ int main(int argc, char* argv[]) {
 	assert(sp.attractor == NULL);
 	assert(sp.n == NUM);
 	init_video(&screen);
+	draw_loading(screen);
 	boids = build_flock(NUM);
 	assert(boids);
 	sp.boids = boids;
