@@ -92,12 +92,12 @@ static CUDPPHandle prepare_scan_plan(int n, size_t pitch) {
 static void find_neighbours(int *d_neighbours_sorted, int n,
 		float *d_distances, int eps) {
 	static unsigned int *d_flags = NULL, *d_neighbours = NULL;
-	static const unsigned int blocksize2d = 16, blocksize = 64;
+	const unsigned int blocksize = 16;
 	unsigned int flags_bytes = n * n * sizeof(*d_flags),
 				 neighbours_bytes = n * n * sizeof(*d_neighbours);
 	static CUDPPHandle planhandle = 0;
-	static const dim3 threads2d(blocksize2d, blocksize2d), threads(blocksize);
-	dim3 blocks2d(n / blocksize2d, n / blocksize2d), blocks(n / blocksize);
+	const dim3 threads(blocksize, blocksize);
+	dim3 blocks(n / blocksize, n / blocksize);
 	if (!d_flags) {
 		size_t pitch;
 		cudaMallocPitch((void**) &d_flags, &pitch, n * sizeof(*d_flags), n);
@@ -105,10 +105,10 @@ static void find_neighbours(int *d_neighbours_sorted, int n,
 		planhandle = prepare_scan_plan(n, pitch / sizeof(*d_flags));
 	}
 	cudaMemset(d_flags, 0, flags_bytes);
-	neighbourhood<<<blocks2d, threads2d>>>(d_neighbours, d_flags, d_distances, n,
+	neighbourhood<<<blocks, threads>>>(d_neighbours, d_flags, d_distances, n,
 			eps * eps);
 	cudppMultiScan(planhandle, d_flags, d_flags, n, n);
-	compact<<<blocks2d, threads2d>>>(d_neighbours_sorted, d_neighbours,
+	compact<<<blocks, threads>>>(d_neighbours_sorted, d_neighbours,
 			d_flags, n);
 }
 
