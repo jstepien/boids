@@ -9,7 +9,6 @@
 #define HEIGHT 480
 #define DEPTH 32
 
-#define NUM 512
 #define EPS 10
 #define DT 0.1f
 
@@ -61,22 +60,20 @@ static void draw_boids(SDL_Surface* screen, boid* boids, int n) {
 }
 
 static boid* build_flock(int n) {
+	int i, j, cur = 0;
+	float sqrt_n = ceilf(sqrtf(n)), dx = WIDTH / (sqrt_n + 1),
+		  dy = HEIGHT / (sqrt_n + 1);
 	boid *boids = calloc(n, sizeof(boid));
-	int sum = n;
 	if (!boids)
 		return NULL;
-	while (--n >= sum / 2) {
-		boids[n].vx = 2;
-		boids[n].vy = 0;
-		boids[n].y = -50 + n;
-		boids[n].x = sinf(boids[n].y / 10) * 40 + 50;
-	}
-	while (--n >= 0) {
-		boids[n].vy = 3;
-		boids[n].vx = 0;
-		boids[n].x = 50 + n;
-		boids[n].y = sinf(boids[n].x / 10) * 40 + 50;
-	}
+	for (i = 0; i < sqrt_n; ++i)
+		for (j = 0; j < sqrt_n && cur < n; ++j) {
+			boids[cur].vx = sinf(17 * cur);
+			boids[cur].vy = cosf(3 * cur);
+			boids[cur].y = (i + 1) * dy;
+			boids[cur].x = (j + 1) * dx;
+			++cur;
+		}
 	return boids;
 }
 
@@ -98,7 +95,7 @@ static void print_stats(int probes_per_avg, int time_total) {
 }
 
 static void simulation_loop(SDL_Surface *screen, simulation_params *sp) {
-	const int probes_per_avg = 100;
+	const int probes_per_avg = 10;
 	SDL_Event event;
 	int keypress = 0, probes = 0, time_total = 0;
 	while (!keypress) {
@@ -128,17 +125,23 @@ static void simulation_loop(SDL_Surface *screen, simulation_params *sp) {
 	}
 }
 
+static void usage(const char* name) {
+	fprintf(stderr, "Usage: %s n\n", name);
+	exit(1);
+}
+
 int main(int argc, char* argv[]) {
 	SDL_Surface *screen;
-	simulation_params sp = {WIDTH, HEIGHT, NULL, NUM, EPS, DT, NULL};
+	simulation_params sp = {WIDTH, HEIGHT, NULL, -1, EPS, DT, NULL};
+	if (argc != 2)
+		usage(*argv);
+	sp.n = atoi(argv[1]);
+	if (sp.n <= 0)
+		usage(*argv);
 	boid *boids;
-	assert(sp.dt == DT);
-	assert(sp.eps == EPS);
-	assert(sp.attractor == NULL);
-	assert(sp.n == NUM);
 	init_video(&screen);
 	draw_loading(screen);
-	boids = build_flock(NUM);
+	boids = build_flock(sp.n);
 	assert(boids);
 	sp.boids = boids;
 	simulation_loop(screen, &sp);
