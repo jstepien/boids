@@ -40,9 +40,8 @@ texture<char, 1, cudaReadModeElementType> boids_texture;
 		exit(-1); \
 	} }
 
-__global__ static void neighbourhood(unsigned int *neighbours,
-		unsigned int *flags, const float *d_distances, const int n,
-		const int eps_sq) {
+__global__ static void neighbourhood(int *neighbours, unsigned int *flags,
+		const float *d_distances, const int n, const int eps_sq) {
 	int ix = blockIdx.x * blockDim.x + threadIdx.x,
 		iy = blockIdx.y * blockDim.y + threadIdx.y,
 		offset = ix + iy * n;
@@ -52,21 +51,19 @@ __global__ static void neighbourhood(unsigned int *neighbours,
 	}
 }
 
-__global__ static void compact(int *neighbours_out,
-		unsigned int *neighbours_in, unsigned int *scanned_flags, int n) {
+__global__ static void compact(int *neighbours,
+		const unsigned int *scanned_flags, const int n) {
 	const int delim = INT_MAX;
 	int ix = blockIdx.x * blockDim.x + threadIdx.x,
 		iy = blockIdx.y * blockDim.y + threadIdx.y,
 		offset = iy * n;
 	if (iy < n) {
 		if (0 == ix) {
-			if (1 == scanned_flags[offset])
-				neighbours_out[offset] = neighbours_in[offset];
-			neighbours_out[offset + scanned_flags[offset + n - 1]] = delim;
+			neighbours[offset + scanned_flags[offset + n - 1]] = delim;
 		} else if (ix < n && scanned_flags[offset + ix] >
 				scanned_flags[offset + ix - 1]) {
-			neighbours_out[offset + scanned_flags[offset + ix] - 1] =
-				neighbours_in[offset + ix];
+			neighbours[offset + scanned_flags[offset + ix] - 1] =
+				neighbours[offset + ix];
 		}
 	}
 }
@@ -89,27 +86,24 @@ static CUDPPHandle prepare_scan_plan(int n, size_t pitch) {
 	return planhandle;
 }
 
-static void find_neighbours(int *d_neighbours_sorted, int n,
-		float *d_distances, int eps) {
-	static unsigned int *d_flags = NULL, *d_neighbours = NULL;
+static void find_neighbours(int *d_neighbours, int n, float *d_distances,
+		int eps) {
+	static unsigned int *d_flags = NULL;
 	const unsigned int blocksize = 16;
-	unsigned int flags_bytes = n * n * sizeof(*d_flags),
-				 neighbours_bytes = n * n * sizeof(*d_neighbours);
+	unsigned int flags_bytes = n * n * sizeof(*d_flags);
 	static CUDPPHandle planhandle = 0;
 	const dim3 threads(blocksize, blocksize);
 	dim3 blocks(n / blocksize, n / blocksize);
 	if (!d_flags) {
 		size_t pitch;
 		cudaMallocPitch((void**) &d_flags, &pitch, n * sizeof(*d_flags), n);
-		cudaMalloc((void**) &d_neighbours, neighbours_bytes);
 		planhandle = prepare_scan_plan(n, pitch / sizeof(*d_flags));
 	}
 	cudaMemset(d_flags, 0, flags_bytes);
 	neighbourhood<<<blocks, threads>>>(d_neighbours, d_flags, d_distances, n,
 			eps * eps);
 	cudppMultiScan(planhandle, d_flags, d_flags, n, n);
-	compact<<<blocks, threads>>>(d_neighbours_sorted, d_neighbours,
-			d_flags, n);
+	compact<<<blocks, threads>>>(d_neighbours, d_flags, n);
 }
 
 __global__ static void count_distance(float *distance, const int n) {
