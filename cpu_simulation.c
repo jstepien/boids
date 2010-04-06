@@ -109,6 +109,16 @@ static void cohesion(boid *boids, boid *this, GList *others) {
 	this->fy += y / weight;
 }
 
+static void attraction(boid *this, int x, int y) {
+	const int weight = 100000;
+	float dx = x - this->x, dy = y - this->y;
+	float coeff = sqrt(dx * dx + dy * dy) / weight;
+	dx *= coeff;
+	dy *= coeff;
+	this->fx += dx;
+	this->fy += dy;
+}
+
 static GList *find_neighbours(boid* boids, int n, int this, int eps) {
 	unsigned int squared_eps = eps * eps;
 	GList *list = NULL;
@@ -156,6 +166,10 @@ void simulate(simulation_params *sp) {
 	#pragma omp parallel for
 	for (i = 0; i < sp->n; ++i)
 		calculate_forces(sp->boids, sp->n, i, sp->eps);
+	if (sp->attractor)
+		#pragma omp parallel for
+		for (i = 0; i < sp->n; ++i)
+			attraction(sp->boids + i, sp->attractor->x, sp->attractor->y);
 	#pragma omp parallel for
 	for (i = 0; i < sp->n; ++i)
 		apply_forces(sp, &sp->boids[i]);
