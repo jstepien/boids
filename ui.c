@@ -48,12 +48,27 @@ static void draw_loading(SDL_Surface *scrn) {
 	SDL_Flip(scrn);
 }
 
-static void draw_boids(SDL_Surface* screen, boid* boids, int n) {
+static void draw_attractor(SDL_Surface* screen, pair *attr) {
+	const char r = 0xff, g = 0x90, b = 0, size = 4;
+	int i;
+	for (i = 1; i < size; ++i) {
+		set_pixel(screen, attr->x + i, attr->y, r, g, b);
+		set_pixel(screen, attr->x, attr->y + i, r, g, b);
+		set_pixel(screen, attr->x, attr->y - i, r, g, b);
+		set_pixel(screen, attr->x - i, attr->y, r, g, b);
+	}
+	set_pixel(screen, attr->x, attr->y, r, g, b);
+}
+
+static void draw_boids(SDL_Surface* screen, simulation_params *sp) {
+	int n = sp->n;
 	if (SDL_MUSTLOCK(screen) && SDL_LockSurface(screen) < 0)
 		exit(1);
 	memset(screen->pixels, 0, HEIGHT * screen->pitch);
 	while (--n >= 0)
-		set_pixel(screen, boids[n].x, boids[n].y, 0xff, 0xff, 0xff);
+		set_pixel(screen, sp->boids[n].x, sp->boids[n].y, 0xff, 0xff, 0xff);
+	if (sp->attractor)
+		draw_attractor(screen, sp->attractor);
 	if (SDL_MUSTLOCK(screen))
 		SDL_UnlockSurface(screen);
 	SDL_Flip(screen); 
@@ -97,26 +112,42 @@ static void print_stats(int probes_per_avg, int time_total) {
 	SDL_WM_SetCaption(buffer, buffer);
 }
 
+static void set_attractor(simulation_params *sp, int x, int y) {
+	assert(sp);
+	if (!sp->attractor)
+		sp->attractor = malloc(sizeof(*sp->attractor));
+	sp->attractor->x = x;
+	sp->attractor->y = y;
+}
+
+static void handle_events(simulation_params *sp, int *quit) {
+	SDL_Event event;
+	while (SDL_PollEvent(&event)) {
+		switch (event.type) {
+			case SDL_QUIT:
+				*quit = 1;
+				break;
+			case SDL_KEYDOWN:
+				*quit = 1;
+				break;
+			case SDL_MOUSEBUTTONUP:
+				if (SDL_BUTTON_LEFT == event.button.button)
+					set_attractor(sp, event.button.x, event.button.y);
+				break;
+		}
+	}
+}
+
 static void simulation_loop(SDL_Surface *screen, simulation_params *sp) {
 	const int probes_per_avg = 10;
-	SDL_Event event;
-	int keypress = 0, probes = 0, time_total = 0;
-	while (!keypress) {
+	int quit = 0, probes = 0, time_total = 0;
+	while (!quit) {
 		struct timeval now, then;
 		gettimeofday(&then, NULL);
 		simulate(sp);
 		gettimeofday(&now, NULL);
-		draw_boids(screen, sp->boids, sp->n);
-		while (SDL_PollEvent(&event)) {      
-			switch (event.type) {
-				case SDL_QUIT:
-					keypress = 1;
-					break;
-				case SDL_KEYDOWN:
-					keypress = 1;
-					break;
-			}
-		}
+		draw_boids(screen, sp);
+		handle_events(sp, &quit);
 		if (now.tv_usec - then.tv_usec > 0)
 			time_total += now.tv_usec - then.tv_usec;
 		else
