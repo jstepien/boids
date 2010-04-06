@@ -202,6 +202,27 @@ static void calculate_all_forces(boid* d_boids, int n, int eps,
 	check_cuda_error();
 }
 
+__global__ static void attraction(boid* boids, int n, float x, float y) {
+	int ix = blockIdx.x * blockDim.x + threadIdx.x;
+	if (ix < n) {
+		const int weight = 100000;
+		x -= boids[ix].x;
+		y -= boids[ix].y;
+		float coeff = sqrtf(x * x + y * y) / weight;
+		x *= coeff;
+		y *= coeff;
+		boids[ix].fx += x;
+		boids[ix].fy += y;
+	}
+}
+
+static void calculate_attraction(boid* d_boids, int n, int x, int y) {
+	const int blocksize = 64;
+	dim3 threads(blocksize), blocks(n / blocksize);
+	attraction<<<blocks, threads>>>(d_boids, n, x, y);
+	check_cuda_error();
+}
+
 __device__ static void normalize_speed(boid* boids) {
 	const float limit_sq = square(MAX_SPEED);
 	int ix = blockIdx.x * blockDim.x + threadIdx.x;
@@ -277,6 +298,9 @@ void simulate(simulation_params *sp) {
 	}
 	reload_distance_cache(d_distance_cache, sp->n);
 	calculate_all_forces(d_boids, sp->n, sp->eps, d_distance_cache);
+	if (sp->attractor)
+		calculate_attraction(d_boids, sp->n, sp->attractor->x,
+				sp->attractor->y);
 	apply_all_forces(d_boids, sp->n, sp->dt, sp->width, sp->height);
 	cudaThreadSynchronize();
 	check_cuda_error();
