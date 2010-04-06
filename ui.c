@@ -68,8 +68,8 @@ static boid* build_flock(int n) {
 		return NULL;
 	for (i = 0; i < sqrt_n; ++i)
 		for (j = 0; j < sqrt_n && cur < n; ++j) {
-			boids[cur].vx = sinf(17 * cur);
-			boids[cur].vy = cosf(3 * cur);
+			boids[cur].vx = sinf((1559 * cur) ^ 50969);
+			boids[cur].vy = cosf((1567 * cur) ^ 51853);
 			boids[cur].y = (i + 1) * dy;
 			boids[cur].x = (j + 1) * dx;
 			++cur;
