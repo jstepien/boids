@@ -120,6 +120,14 @@ static void set_attractor(simulation_params *sp, int x, int y) {
 	sp->attractor->y = y;
 }
 
+static void unset_attractor(simulation_params *sp) {
+	assert(sp);
+	if (!sp->attractor)
+		return;
+	free(sp->attractor);
+	sp->attractor = NULL;
+}
+
 static void handle_events(simulation_params *sp, int *quit) {
 	SDL_Event event;
 	while (SDL_PollEvent(&event)) {
@@ -133,6 +141,8 @@ static void handle_events(simulation_params *sp, int *quit) {
 			case SDL_MOUSEBUTTONUP:
 				if (SDL_BUTTON_LEFT == event.button.button)
 					set_attractor(sp, event.button.x, event.button.y);
+				else if (SDL_BUTTON_RIGHT == event.button.button)
+					unset_attractor(sp);
 				break;
 		}
 	}
