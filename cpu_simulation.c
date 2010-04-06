@@ -2,6 +2,7 @@
 #include <assert.h>
 #include <glib.h>
 #include <stdlib.h>
+#include <string.h>
 #include "simulation.h"
 
 #define square(x) ((x)*(x))
@@ -156,6 +157,24 @@ static void apply_forces(simulation_params *sp, boid* boid) {
 		boid->y += sp->height;
 }
 
+static void count_intensity(simulation_params *sp) {
+	int i, j, max = 3;
+	float coeff = 0xff;
+	memset(sp->intensity, 0, sizeof(char) * sp->width * sp->height);
+	for (i = 0; i < sp->n; ++i) {
+		boid b = sp->boids[i];
+		int value = ++sp->intensity[((int) b.y) * sp->width + ((int) b.x)];
+		if (value > max)
+			max = value;
+	}
+	coeff /= max;
+	#pragma omp parallel for private(j)
+	for (i = 0; i < sp->height; ++i) {
+		for (j = 0; j < sp->width; ++j)
+			sp->intensity[i * sp->width + j] *= coeff;
+	}
+}
+
 void simulate(simulation_params *sp) {
 	int i = 0;
 	if (!g_thread_supported())
@@ -173,4 +192,5 @@ void simulate(simulation_params *sp) {
 	#pragma omp parallel for
 	for (i = 0; i < sp->n; ++i)
 		apply_forces(sp, &sp->boids[i]);
+	count_intensity(sp);
 }

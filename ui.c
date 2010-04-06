@@ -61,12 +61,15 @@ static void draw_attractor(SDL_Surface* screen, pair *attr) {
 }
 
 static void draw_boids(SDL_Surface* screen, simulation_params *sp) {
-	int n = sp->n;
+	int i, j;
 	if (SDL_MUSTLOCK(screen) && SDL_LockSurface(screen) < 0)
 		exit(1);
 	memset(screen->pixels, 0, HEIGHT * screen->pitch);
-	while (--n >= 0)
-		set_pixel(screen, sp->boids[n].x, sp->boids[n].y, 0xff, 0xff, 0xff);
+	for (i = 0; i < sp->height; ++i)
+		for (j = 0; j < sp->width; ++j) {
+			char value = sp->intensity[i * sp->width + j];
+			set_pixel(screen, j, i, value, value, value);
+		}
 	if (sp->attractor)
 		draw_attractor(screen, sp->attractor);
 	if (SDL_MUSTLOCK(screen))
@@ -178,7 +181,8 @@ int main(int argc, char* argv[]) {
 	SDL_Surface *screen;
 	boid *boids;
 	int fullscreen = 0, argptr = 1;
-	simulation_params sp = {WIDTH, HEIGHT, NULL, -1, EPS, DT, NULL};
+	char intensity[HEIGHT * WIDTH];
+	simulation_params sp = {WIDTH, HEIGHT, NULL, -1, EPS, DT, intensity, NULL};
 	if (argc < 2)
 		usage(*argv);
 	if (0 == strcmp("-f", argv[1])) {

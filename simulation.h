@@ -21,6 +21,7 @@ typedef struct {
 	int n;
 	int eps;
 	float dt;
+	char *intensity;
 	pair *attractor;
 } simulation_params;
 
