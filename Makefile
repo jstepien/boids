@@ -5,8 +5,9 @@ GPULDFLAGS+=${LDFLAGS} -lcudart -lcudpp
 CPUOBJECTS=ui.o cpu_simulation.o
 GPUOBJECTS=ui.o gpu_simulation.o
 TARGETS=cpu gpu
+NVCC?=nvcc
 .SUFFIXES: .cu
-.PHONY: all
+.PHONY: all clean
 all: ${TARGETS}
 cpu: ${CPUOBJECTS}
 	${CC} $^ -o $@ ${LDFLAGS}
@@ -15,4 +16,4 @@ gpu: ${GPUOBJECTS}
 clean:
 	-rm -f ${TARGETS} ${CPUOBJECTS} ${GPUOBJECTS}
 .cu.o:
-	nvcc -c $^ ${NVCCFLAGS}
+	${NVCC} ${NVCCFLAGS} -c $^
