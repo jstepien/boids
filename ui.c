@@ -179,6 +179,16 @@ static void usage(const char* name) {
 	exit(1);
 }
 
+static int correct(int n) {
+	if (n > 0 && (n % 64 == 0))
+		return 1;
+	else {
+		fprintf(stderr, "%s:%i: n has to be a multiple of 64\n", __FILE__,
+				__LINE__);
+		return 0;
+	}
+}
+
 int main(int argc, char* argv[]) {
 	SDL_Surface *screen;
 	boid *boids;
@@ -192,7 +202,7 @@ int main(int argc, char* argv[]) {
 		++argptr;
 	}
 	sp.n = atoi(argv[argptr]);
-	if (sp.n <= 0)
+	if (!correct(sp.n))
 		usage(*argv);
 	init_video(&screen, fullscreen);
 	draw_loading(screen);
