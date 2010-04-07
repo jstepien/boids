@@ -285,6 +285,24 @@ __global__ static void warmup_kernel(boid *boids, int n) {
 		boids[ix].x = boids[ix].y + (ix % 3);
 }
 
+static void count_intensity(simulation_params *sp) {
+	int i, j, max = 3;
+	float coeff = 0xff;
+	memset(sp->intensity, 0, sizeof(char) * sp->width * sp->height);
+	for (i = 0; i < sp->n; ++i) {
+		boid b = sp->boids[i];
+		int value = ++sp->intensity[((int) b.y) * sp->width + ((int) b.x)];
+		if (value > max)
+			max = value;
+	}
+	coeff /= max;
+	#pragma omp parallel for private(j)
+	for (i = 0; i < sp->height; ++i) {
+		for (j = 0; j < sp->width; ++j)
+			sp->intensity[i * sp->width + j] *= coeff;
+	}
+}
+
 void simulate(simulation_params *sp) {
 	static float *d_distance_cache = NULL;
 	static boid *d_boids = NULL;
@@ -306,4 +324,5 @@ void simulate(simulation_params *sp) {
 	check_cuda_error();
 	cudaMemcpy(sp->boids, d_boids, boids_bytes, cudaMemcpyDeviceToHost);
 	check_cuda_error();
+	count_intensity(sp);
 }
