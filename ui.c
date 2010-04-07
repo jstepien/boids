@@ -62,12 +62,14 @@ static void draw_attractor(SDL_Surface* screen, pair *attr) {
 
 static void draw_boids(SDL_Surface* screen, simulation_params *sp) {
 	int i, j;
+	char value;
 	if (SDL_MUSTLOCK(screen) && SDL_LockSurface(screen) < 0)
 		exit(1);
 	memset(screen->pixels, 0, HEIGHT * screen->pitch);
+	#pragma omp parallel for private(j, value)
 	for (i = 0; i < sp->height; ++i)
 		for (j = 0; j < sp->width; ++j) {
-			char value = sp->intensity[i * sp->width + j];
+			value = sp->intensity[i * sp->width + j];
 			set_pixel(screen, j, i, value, value, value);
 		}
 	if (sp->attractor)
