@@ -72,15 +72,13 @@ __global__ static void compact(int *neighbours,
 }
 
 static CUDPPHandle prepare_scan_plan(int n, size_t pitch) {
-	CUDPPHandle theCudpp;
-	cudppCreate(&theCudpp);
 	CUDPPConfiguration config;
 	config.datatype = CUDPP_UINT;
 	config.algorithm = CUDPP_SCAN;
 	config.options = CUDPP_OPTION_FORWARD;
 	config.op = CUDPP_ADD;
 	CUDPPHandle planhandle = 0;
-	CUDPPResult result = cudppPlan(theCudpp, &planhandle, config, n, n, pitch);
+	CUDPPResult result = cudppPlan(&planhandle, config, n, n, pitch);
 	if (CUDPP_SUCCESS != result) {
 		printf("Error creating CUDPPPlan\n");
 		exit(-1);
