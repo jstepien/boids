@@ -203,14 +203,19 @@ static void calculate_all_forces(boid* d_boids, int n, int eps,
 __global__ static void attraction(boid* boids, int n, float x, float y) {
 	int ix = blockIdx.x * blockDim.x + threadIdx.x;
 	if (ix < n) {
-		const int weight = 100000;
-		x -= boids[ix].x;
-		y -= boids[ix].y;
-		float coeff = sqrtf(x * x + y * y) / weight;
-		x *= coeff;
-		y *= coeff;
-		boids[ix].fx += x;
-		boids[ix].fy += y;
+		/* I'm assuming sines and cosines will be calculated statically. */
+		const float sin = sinf(TURNING_SPEED), cos = cosf(TURNING_SPEED),
+			  msin = sinf(-TURNING_SPEED), mcos = cosf(-TURNING_SPEED);
+		float next_x = boids[ix].x + boids[ix].vx, next_y = boids[ix].y + boids[ix].vy;
+		float det = boids[ix].x * y + next_x * boids[ix].y + x * next_y
+			- x * boids[ix].y - boids[ix].x * next_y - next_x * y;
+		if (det > 0) {
+			boids[ix].fx += boids[ix].vx - (boids[ix].vx * cos - boids[ix].vy * sin);
+			boids[ix].fy += boids[ix].vy - (boids[ix].vx * sin + boids[ix].vy * cos);
+		} else if (det < 0) {
+			boids[ix].fx += boids[ix].vx - (boids[ix].vx * mcos - boids[ix].vy * msin);
+			boids[ix].fy += boids[ix].vy - (boids[ix].vx * msin + boids[ix].vy * mcos);
+		}
 	}
 }
 

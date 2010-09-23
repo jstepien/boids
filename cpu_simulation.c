@@ -111,13 +111,18 @@ static void cohesion(boid *boids, boid *this, GList *others) {
 }
 
 static void attraction(boid *this, int x, int y) {
-	const int weight = 100000;
-	float dx = x - this->x, dy = y - this->y;
-	float coeff = sqrt(dx * dx + dy * dy) / weight;
-	dx *= coeff;
-	dy *= coeff;
-	this->fx += dx;
-	this->fy += dy;
+	const float sin = sinf(TURNING_SPEED), cos = cosf(TURNING_SPEED),
+		  msin = sinf(-TURNING_SPEED), mcos = cosf(-TURNING_SPEED);
+	float next_x = this->x + this->vx, next_y = this->y + this->vy;
+	float det = this->x * y + next_x * this->y + x * next_y
+		- x * this->y - this->x * next_y - next_x * y;
+	if (det > 0) {
+		this->fx += this->vx - (this->vx * cos - this->vy * sin);
+		this->fy += this->vy - (this->vx * sin + this->vy * cos);
+	} else if (det < 0) {
+		this->fx += this->vx - (this->vx * mcos - this->vy * msin);
+		this->fy += this->vy - (this->vx * msin + this->vy * mcos);
+	}
 }
 
 static GList *find_neighbours(boid* boids, int n, int this, int eps) {

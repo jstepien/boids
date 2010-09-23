@@ -1,6 +1,8 @@
 #ifndef SIMULATION_H_
 #define SIMULATION_H_
 
+#define TURNING_SPEED M_PI/32
+
 typedef struct {
 	float x;
 	float y;
