@@ -1,0 +1,33 @@
+Boids
+=====
+
+See http://www.red3d.com/cwr/boids/ for some background.
+
+Requirements
+------------
+
+ * CUDA, http://www.nvidia.com/object/cuda_home.html
+ * CUDPP, http://code.google.com/p/cudpp/
+ * GLib 2.0 (only for the CPU version), http://www.gtk.org/
+ * SDL, http://www.libsdl.org/
+
+Building
+--------
+
+Build sources using `make`. OpenMP is supported -- if you're using GCC turn it
+on by adding `-fopenmp` to CFLAGS and LDFLAGS.
+
+Usage
+-----
+
+The `-f` command line argument enables the fullscreen mode.
+
+An attractor can be set using the left mouse button and removed using the right
+mouse button.
+
+Pressing any key kills the application.
+
+License
+-------
+
+See `LICENSE`.
