@@ -166,6 +166,8 @@ static void apply_forces(simulation_params *sp, boid* boid) {
 }
 
 static void count_intensity(simulation_params *sp) {
+	if (!sp->intensity)
+		return;
 	int i, j, max = 3;
 	float coeff = 0xff;
 	memset(sp->intensity, 0, sizeof(char) * sp->width * sp->height);
