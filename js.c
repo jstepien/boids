@@ -22,13 +22,16 @@ static void print_state(simulation_params *sp) {
 	printf("]\n");
 }
 
-static boid* build_flock(int n, char **argv) {
+static boid* build_flock(boid *boids, int n, char **argv) {
 	int i, j, cur = 0, argv_index = 0;
 	float sqrt_n = ceilf(sqrtf(n)), dx = WIDTH / (sqrt_n + 1),
 		  dy = HEIGHT / (sqrt_n + 1);
-	boid *boids = calloc(n, sizeof(boid));
 	if (!boids)
 		return NULL;
+	do
+		boids[cur].fx = boids[cur].fy = 0;
+	while (++cur < n);
+	cur = 0;
 	if (argv) {
 		do {
 			boids[cur].x = atof(argv[argv_index++]);
@@ -67,14 +70,20 @@ static int correct(int n) {
 
 int main(int argc, char* argv[]) {
 	simulation_params sp = {WIDTH, HEIGHT, NULL, -1, EPS, DT, NULL, NULL};
+	boid boids_static[256];
+	boid *boids = boids_static;
 	if (argc < 2)
-		sp.n = 256;
-	else
+		sp.n = ARRAY_SIZE(boids_static);
+	else {
 		sp.n = atoi(argv[1]);
+		if (sp.n > ARRAY_SIZE(boids_static))
+			boids = calloc(sp.n, sizeof(boid));
+	}
 	if (!correct(sp.n))
 		return 1;
-	sp.boids = build_flock(sp.n, argc > 2 ? (argv + 2) : NULL);
+	sp.boids = build_flock(boids, sp.n, argc > 2 ? (argv + 2) : NULL);
 	simulation_step(&sp);
-	free(sp.boids);
+	if (sp.boids != boids_static)
+		free(sp.boids);
 	return 0;
 }
