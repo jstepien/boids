@@ -8,7 +8,6 @@ Requirements
 
  * CUDA, http://www.nvidia.com/object/cuda_home.html
  * CUDPP, http://code.google.com/p/cudpp/
- * GLib 2.0 (only for the CPU version), http://www.gtk.org/
  * SDL, http://www.libsdl.org/
 
 Building
